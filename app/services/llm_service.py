@@ -3,10 +3,12 @@ from __future__ import annotations
 from typing import Type, TypeVar
 
 import sys
+import os
 from getpass import getpass
 from pathlib import Path
 
 from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_ollama import ChatOllama
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import PydanticOutputParser
 
@@ -18,22 +20,34 @@ T = TypeVar("T")
 
 class LLMService:
     def __init__(self, api_key: str | None, model: str, config_path: str | None = None):
-        if not api_key:
-            raise RuntimeError("GOOGLE_API_KEY is required to run the LLM service.")
         self.model_name = model
         self.api_key = api_key
         self.config = ConfigService(Path(config_path) if config_path else Path(".env.local"))
-        self.model = ChatGoogleGenerativeAI(
-            model=model, google_api_key=api_key, temperature=0.2
-        )
+        if self._is_ollama_model(model):
+            self.provider = "ollama"
+            self.model = self._build_ollama_model(model)
+        else:
+            if not api_key:
+                raise RuntimeError("GOOGLE_API_KEY is required to run the LLM service.")
+            self.provider = "gemini"
+            self.model = ChatGoogleGenerativeAI(
+                model=model, google_api_key=api_key, temperature=0.2
+            )
 
     def set_model(self, model_name: str) -> None:
         if not model_name or model_name == self.model_name:
             return
         self.model_name = model_name
-        self.model = ChatGoogleGenerativeAI(
-            model=model_name, google_api_key=self.api_key, temperature=0.2
-        )
+        if self._is_ollama_model(model_name):
+            self.provider = "ollama"
+            self.model = self._build_ollama_model(model_name)
+        else:
+            if not self.api_key:
+                raise RuntimeError("GOOGLE_API_KEY is required to run the LLM service.")
+            self.provider = "gemini"
+            self.model = ChatGoogleGenerativeAI(
+                model=model_name, google_api_key=self.api_key, temperature=0.2
+            )
 
     def invoke(self, system_prompt: str, user_prompt: str) -> str:
         prompt = ChatPromptTemplate.from_messages(
@@ -59,6 +73,10 @@ class LLMService:
             result = chain.invoke({"system": system_prompt, "user": user_prompt})
             return result.content
         except Exception as exc:
+            if self.provider == "ollama" and self._is_ollama_not_available(exc):
+                raise RuntimeError(
+                    "OLLAMA_NOT_AVAILABLE: Ollama is not running or not installed."
+                ) from exc
             if self._is_model_not_found(exc):
                 if self.model_name != "gemini-1.5-flash-001":
                     self.set_model("gemini-1.5-flash-001")
@@ -94,6 +112,14 @@ class LLMService:
         text = str(exc).lower()
         return "api key" in text or "unauthorized" in text or "permission" in text
 
+    def _is_ollama_not_available(self, exc: Exception) -> bool:
+        text = str(exc).lower()
+        return (
+            "connection refused" in text
+            or "connecterror" in text
+            or "failed to establish a new connection" in text
+        )
+
     def _refresh_api_key(self) -> bool:
         if not (hasattr(sys, "stdin") and sys.stdin and sys.stdin.isatty()):
             return False
@@ -106,9 +132,10 @@ class LLMService:
         if not self._validate_key(new_key):
             return False
         self.api_key = new_key
-        self.model = ChatGoogleGenerativeAI(
-            model=self.model_name, google_api_key=new_key, temperature=0.2
-        )
+        if self.provider == "gemini":
+            self.model = ChatGoogleGenerativeAI(
+                model=self.model_name, google_api_key=new_key, temperature=0.2
+            )
         self.config.save({"GOOGLE_API_KEY": new_key})
         return True
 
@@ -119,6 +146,22 @@ class LLMService:
             return True
         except Exception:
             return False
+
+    @staticmethod
+    def _is_ollama_model(model_name: str) -> bool:
+        return model_name.lower().startswith("ollama:")
+
+    @staticmethod
+    def _extract_ollama_model(model_name: str) -> str:
+        _, _, name = model_name.partition(":")
+        return name.strip() or "llama3.1"
+
+    def _build_ollama_model(self, model_name: str):
+        base_url = (
+            self.config.load().get("OLLAMA_BASE_URL")
+            or str(os.getenv("OLLAMA_BASE_URL") or "http://localhost:11434")
+        )
+        return ChatOllama(model=self._extract_ollama_model(model_name), base_url=base_url)
 
     @staticmethod
     def _normalize_content(content: object) -> str:

@@ -184,7 +184,16 @@ export default function App() {
         <div className="brand">
           <span className="brand-kicker">Astra Internship Copilot</span>
           <h1>Progress command desk</h1>
-          <p>Capture notes, turn them into actions, and ship reports in minutes.</p>
+          <div className="brand-stats">
+            <div className="stat-card">
+              <span>Session focus</span>
+              <strong>Internship ops</strong>
+            </div>
+            <div className="stat-card">
+              <span>Mode</span>
+              <strong>Intent-aware</strong>
+            </div>
+          </div>
         </div>
         <div className="topbar-controls">
           <div className="control-group">
@@ -200,6 +209,8 @@ export default function App() {
               <option value="gemini-2-flash">gemini-2-flash</option>
               <option value="gemini-2.5-flash">gemini-2.5-flash</option>
               <option value="gemini-1.5-flash-001">gemini-1.5-flash-001</option>
+              <option value="ollama:llama3.1">ollama:llama3.1</option>
+              <option value="ollama:phi3">ollama:phi3</option>
             </select>
           </div>
           <div className="profile-menu">
@@ -279,6 +290,19 @@ export default function App() {
                   {template}
                 </button>
               ))}
+            </div>
+          </div>
+          <div className="sidebar-card">
+            <div className="sidebar-title">Session pulse</div>
+            <div className="sidebar-metrics">
+              <div>
+                <span>Messages</span>
+                <strong>{messages.length}</strong>
+              </div>
+              <div>
+                <span>Status</span>
+                <strong>{status === "loading" ? "Working" : "Ready"}</strong>
+              </div>
             </div>
           </div>
           <div className="sidebar-card">

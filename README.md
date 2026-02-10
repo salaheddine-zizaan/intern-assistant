@@ -43,10 +43,33 @@ set GOOGLE_API_KEY=your_key
 set GEMINI_MODEL=gemini-2-flash
 set OBSIDIAN_VAULT_PATH=path\to\vault  (optional)
 set DATABASE_PATH=path\to\database\intern_assistant.db  (optional)
+set OLLAMA_BASE_URL=http://localhost:11434  (optional)
 ```
 
 If `GOOGLE_API_KEY` is not set, the server will prompt for it on startup when running in a terminal.
 The key is persisted locally in `intern_assistant/.env.local`.
+
+## Local LLM (Ollama)
+
+You can run the assistant with a local model via Ollama.
+
+Install Ollama (once):
+
+1. Install the Ollama app for your OS.
+2. Start the Ollama app (or run `ollama serve`).
+3. Pull a model:
+
+```bash
+ollama pull llama3.1
+```
+
+Then in the UI model selector choose:
+
+- `ollama:llama3.1` (recommended)
+- `ollama:phi3`
+
+If Ollama is not installed or running, the API will respond with a message telling you to install
+and start Ollama first.
 
 4. Run the API:
 

@@ -165,6 +165,12 @@ def _llm_error_message(exc: Exception) -> str:
     text = str(exc)
     if "NOT_FOUND" in text and "models/" in text:
         return "Selected model is not available. Choose another model from the selector."
+    if "OLLAMA_NOT_AVAILABLE" in text or "ollama" in text.lower() and "connection" in text.lower():
+        return (
+            "Local model unavailable. Install Ollama, start the Ollama app or run `ollama serve`, "
+            "then download a model with `ollama pull llama3.1`. After that, select `ollama:llama3.1` "
+            "in the model picker."
+        )
     if "getaddrinfo failed" in text or "ConnectError" in text:
         return "Network error while contacting the model API. Check your internet connection."
     return "LLM request failed. Please try again or change the model."

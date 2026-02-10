@@ -74,6 +74,35 @@ body {
   line-height: 1.6;
 }
 
+.brand-stats {
+  display: flex;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.stat-card {
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 12px;
+  padding: 8px 12px;
+  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 140px;
+}
+
+.stat-card span {
+  opacity: 0.65;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 10px;
+}
+
+.stat-card strong {
+  font-size: 13px;
+}
+
 .brand-kicker {
   text-transform: uppercase;
   letter-spacing: 0.18em;
@@ -160,6 +189,34 @@ body {
   margin-bottom: 10px;
 }
 
+.sidebar-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.sidebar-metrics div {
+  background: rgba(15, 23, 42, 0.6);
+  border-radius: 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+}
+
+.sidebar-metrics span {
+  opacity: 0.65;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 10px;
+}
+
+.sidebar-metrics strong {
+  font-size: 14px;
+}
+
 .template-list {
   display: flex;
   flex-direction: column;
@@ -197,6 +254,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  position: relative;
 }
 
 .status-bar {
@@ -250,6 +308,18 @@ body {
   scroll-behavior: smooth;
   scrollbar-width: thin;
   scrollbar-color: rgba(34, 211, 238, 0.6) rgba(15, 23, 42, 0.4);
+  position: relative;
+}
+
+.chat-window::before {
+  content: "";
+  position: sticky;
+  top: 0;
+  height: 12px;
+  margin-top: -12px;
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.9), transparent);
+  pointer-events: none;
+  z-index: 1;
 }
 
 .chat-window::-webkit-scrollbar {
@@ -429,6 +499,19 @@ body {
   border: 1px solid rgba(148, 163, 184, 0.2);
   box-shadow: 0 14px 26px rgba(3, 7, 18, 0.35);
   backdrop-filter: blur(10px);
+  position: relative;
+}
+
+.input-box::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: 18px;
+  padding: 1px;
+  background: linear-gradient(120deg, rgba(34, 211, 238, 0.4), transparent, rgba(99, 102, 241, 0.4));
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
 }
 
 .input-box textarea {
@@ -794,6 +877,14 @@ body {
   }
 
   .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .brand-stats {
+    flex-direction: column;
+  }
+
+  .sidebar-metrics {
     grid-template-columns: 1fr;
   }
 }
