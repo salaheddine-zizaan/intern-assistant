@@ -9,6 +9,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from app.models.schemas import (
     ChatHistoryResponse,
     ChatMessageRequest,
+    ChatSessionsResponse,
     CommandRequest,
     CommandResponse,
     ProfileCreateRequest,
@@ -165,11 +166,10 @@ def _llm_error_message(exc: Exception) -> str:
     text = str(exc)
     if "NOT_FOUND" in text and "models/" in text:
         return "Selected model is not available. Choose another model from the selector."
-    if "OLLAMA_NOT_AVAILABLE" in text or "ollama" in text.lower() and "connection" in text.lower():
+    if "OPENROUTER_API_KEY" in text:
         return (
-            "Local model unavailable. Install Ollama, start the Ollama app or run `ollama serve`, "
-            "then download a model with `ollama pull llama3.1`. After that, select `ollama:llama3.1` "
-            "in the model picker."
+            "OpenRouter API key missing. Set OPENROUTER_API_KEY in your environment "
+            "or in .env.local, then select the OpenRouter model again."
         )
     if "getaddrinfo failed" in text or "ConnectError" in text:
         return "Network error while contacting the model API. Check your internet connection."
@@ -264,7 +264,18 @@ def _handle_message(payload: CommandRequest) -> CommandResponse:
     files: list[str] = []
 
     if payload.model:
-        orchestrator.brain.llm.set_model(payload.model)
+        try:
+            orchestrator.brain.llm.set_model(payload.model)
+        except Exception as exc:
+            return CommandResponse(
+                status="error",
+                actions=[],
+                files=[],
+                message=_llm_error_message(exc),
+                intent="conversation",
+                action="talk",
+                reason="LLM unavailable",
+            )
 
     active_profile = profile_service.get_active_profile()
     if not active_profile:
@@ -282,7 +293,7 @@ def _handle_message(payload: CommandRequest) -> CommandResponse:
     profile_id = orchestrator.profile["profile_id"]
     session_id = payload.session_id or orchestrator.session_id
     if not session_id:
-        session_id = orchestrator.memory.get_or_create_latest_session(profile_id)
+        session_id = orchestrator.memory.get_or_create_daily_session(profile_id, payload.date)
         orchestrator.session_id = session_id
     history = orchestrator.memory.get_context(profile_id, session_id)
     state = orchestrator.memory.get_state(profile_id, session_id)
@@ -628,18 +639,33 @@ def chat_message(payload: ChatMessageRequest) -> CommandResponse:
 
 
 @app.get("/chat/history", response_model=ChatHistoryResponse)
-def chat_history() -> ChatHistoryResponse:
+def chat_history(session_id: str | None = None) -> ChatHistoryResponse:
     active_profile = profile_service.get_active_profile()
     if not active_profile:
         return ChatHistoryResponse(session_id="", messages=[])
     if active_profile and active_profile["profile_id"] != orchestrator.profile["profile_id"]:
         orchestrator.switch_profile(active_profile)
+    selected_session = session_id or orchestrator.session_id
+    if not selected_session:
+        selected_session = orchestrator.memory.get_or_create_daily_session(active_profile["profile_id"])
+        orchestrator.session_id = selected_session
+    messages = orchestrator.memory.get_history(orchestrator.profile["profile_id"], selected_session)
+    return ChatHistoryResponse(session_id=selected_session, messages=messages)
+
+
+@app.get("/chat/sessions", response_model=ChatSessionsResponse)
+def chat_sessions() -> ChatSessionsResponse:
+    active_profile = profile_service.get_active_profile()
+    if not active_profile:
+        return ChatSessionsResponse(active_session_id=None, sessions=[])
+    if active_profile and active_profile["profile_id"] != orchestrator.profile["profile_id"]:
+        orchestrator.switch_profile(active_profile)
     session_id = orchestrator.session_id
     if not session_id:
-        session_id = orchestrator.memory.get_or_create_latest_session(active_profile["profile_id"])
+        session_id = orchestrator.memory.get_or_create_daily_session(active_profile["profile_id"])
         orchestrator.session_id = session_id
-    messages = orchestrator.memory.get_history(orchestrator.profile["profile_id"], session_id)
-    return ChatHistoryResponse(session_id=session_id, messages=messages)
+    sessions = orchestrator.memory.list_sessions(active_profile["profile_id"])
+    return ChatSessionsResponse(active_session_id=session_id, sessions=sessions)
 
 
 @app.get("/profiles", response_model=ProfilesListResponse)

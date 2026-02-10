@@ -43,33 +43,28 @@ set GOOGLE_API_KEY=your_key
 set GEMINI_MODEL=gemini-2-flash
 set OBSIDIAN_VAULT_PATH=path\to\vault  (optional)
 set DATABASE_PATH=path\to\database\intern_assistant.db  (optional)
-set OLLAMA_BASE_URL=http://localhost:11434  (optional)
+set OPENROUTER_API_KEY=your_key  (optional)
+set OPENROUTER_BASE_URL=https://openrouter.ai/api/v1  (optional)
 ```
 
 If `GOOGLE_API_KEY` is not set, the server will prompt for it on startup when running in a terminal.
 The key is persisted locally in `intern_assistant/.env.local`.
 
-## Local LLM (Ollama)
+## OpenRouter Model (Optional)
 
-You can run the assistant with a local model via Ollama.
+You can route requests through OpenRouter by selecting an OpenRouter model in the UI.
 
-Install Ollama (once):
-
-1. Install the Ollama app for your OS.
-2. Start the Ollama app (or run `ollama serve`).
-3. Pull a model:
+1. Create an OpenRouter API key.
+2. Set:
 
 ```bash
-ollama pull llama3.1
+set OPENROUTER_API_KEY=your_key
+set OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
 ```
 
-Then in the UI model selector choose:
+3. Choose the OpenRouter model in the UI:
 
-- `ollama:llama3.1` (recommended)
-- `ollama:phi3`
-
-If Ollama is not installed or running, the API will respond with a message telling you to install
-and start Ollama first.
+- `openrouter/nvidia/nemotron-3-nano-30b-a3b:free`
 
 4. Run the API:
 

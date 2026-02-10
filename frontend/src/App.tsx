@@ -3,7 +3,9 @@ import ChatWindow from "./components/ChatWindow";
 import InputBox from "./components/InputBox";
 import StatusBar from "./components/StatusBar";
 import {
+  fetchChatSessions,
   fetchHistory,
+  fetchHistoryForSession,
   fetchProfiles,
   sendMessage,
   switchProfile,
@@ -29,6 +31,9 @@ export default function App() {
   const [statusMessage, setStatusMessage] = useState<string>("");
   const [sessionId, setSessionId] = useState<string | undefined>();
   const [inputValue, setInputValue] = useState<string>("");
+  const [chatSessions, setChatSessions] = useState<
+    { session_id: string; day: string; updated_at: string }[]
+  >([]);
   const [profiles, setProfiles] = useState<
     { profile_id: string; internship_name: string; active: number; name?: string; start_date?: string }[]
   >([]);
@@ -40,7 +45,22 @@ export default function App() {
   const [model, setModel] = useState<string>(() => {
     return localStorage.getItem("llm-model") || "gemini-2-flash";
   });
-  const lastAssistant = [...messages].reverse().find((msg) => msg.role === "assistant");
+  const formatDay = (value: string) => {
+    if (!value) return "";
+    try {
+      return new Date(value).toLocaleDateString();
+    } catch {
+      return value;
+    }
+  };
+  const formatTimestamp = (value: string) => {
+    if (!value) return "";
+    try {
+      return new Date(value).toLocaleString();
+    } catch {
+      return value;
+    }
+  };
 
   const templates = [
     "Summarize what I did today in my internship",
@@ -51,8 +71,11 @@ export default function App() {
     "Here are my raw notes. Rewrite them and save to Notes. Extract tasks, progress, and meeting summary, then organize files accordingly:\n\n[PASTE NOTES HERE]"
   ];
 
-  const loadHistory = () => {
-    fetchHistory()
+  const loadHistory = (sessionOverride?: string) => {
+    const loader = sessionOverride
+      ? fetchHistoryForSession(sessionOverride)
+      : fetchHistory();
+    loader
       .then((history) => {
         setSessionId(history.session_id);
         if (history.messages.length > 0) {
@@ -71,6 +94,19 @@ export default function App() {
       });
   };
 
+  const loadSessions = () => {
+    fetchChatSessions()
+      .then((data) => {
+        setChatSessions(data.sessions);
+        if (data.active_session_id) {
+          setSessionId(data.active_session_id);
+        }
+      })
+      .catch(() => {
+        setStatusMessage("Unable to load chat sessions");
+      });
+  };
+
   useEffect(() => {
     fetchProfiles()
       .then((data) => {
@@ -83,6 +119,7 @@ export default function App() {
         setStatusMessage("Unable to load profiles");
       });
     loadHistory();
+    loadSessions();
   }, []);
 
   const handleSend = async (text: string) => {
@@ -113,6 +150,7 @@ export default function App() {
       setMessages((prev) => [...prev, assistantMessage]);
       setStatus("success");
       setStatusMessage("Done");
+      loadSessions();
     } catch (error) {
       setStatus("error");
       setStatusMessage("Request failed");
@@ -143,6 +181,7 @@ export default function App() {
             setShowOnboarding(false);
             setShowSelector(false);
             loadHistory();
+            loadSessions();
           }}
         />
       </div>
@@ -167,6 +206,7 @@ export default function App() {
             setActiveProfileId(profileId);
             setShowSelector(false);
             loadHistory();
+            loadSessions();
           }}
           onCreate={async () => {
             setShowOnboarding(true);
@@ -209,8 +249,18 @@ export default function App() {
               <option value="gemini-2-flash">gemini-2-flash</option>
               <option value="gemini-2.5-flash">gemini-2.5-flash</option>
               <option value="gemini-1.5-flash-001">gemini-1.5-flash-001</option>
-              <option value="ollama:llama3.1">ollama:llama3.1</option>
-              <option value="ollama:phi3">ollama:phi3</option>
+              <option value="openrouter:nvidia/nemotron-3-nano-30b-a3b:free">
+                openrouter/nvidia/nemotron-3-nano-30b-a3b:free
+              </option>
+              <option value="openrouter:openrouter/free">
+                openrouter/free (router)
+              </option>
+              <option value="openrouter:upstage/solar-pro-3:free">
+                openrouter/upstage/solar-pro-3:free
+              </option>
+              <option value="openrouter:arcee-ai/trinity-large-preview:free">
+                openrouter/arcee-ai/trinity-large-preview:free
+              </option>
             </select>
           </div>
           <div className="profile-menu">
@@ -326,25 +376,31 @@ export default function App() {
         </main>
         <aside className="inspector">
           <div className="inspector-card">
-            <div className="inspector-title">Latest response</div>
+            <div className="inspector-title">Daily chat history</div>
             <div className="inspector-body">
-              {lastAssistant ? lastAssistant.text : "No assistant response yet."}
-            </div>
-          </div>
-          <div className="inspector-card">
-            <div className="inspector-title">Actions</div>
-            <div className="inspector-body">
-              {lastAssistant?.actions && lastAssistant.actions.length > 0
-                ? lastAssistant.actions.join(", ")
-                : "No actions performed."}
-            </div>
-          </div>
-          <div className="inspector-card">
-            <div className="inspector-title">Files</div>
-            <div className="inspector-body">
-              {lastAssistant?.files && lastAssistant.files.length > 0
-                ? lastAssistant.files.join("\n")
-                : "No files written."}
+              {chatSessions.length === 0 && "No chat sessions yet."}
+              {chatSessions.length > 0 && (
+                <div className="chat-history-list">
+                  {chatSessions.map((session) => (
+                    <button
+                      key={session.session_id}
+                      type="button"
+                      className={`chat-history-item ${
+                        session.session_id === sessionId ? "active" : ""
+                      }`}
+                      onClick={() => {
+                        loadHistory(session.session_id);
+                        setSessionId(session.session_id);
+                      }}
+                    >
+                      <div className="chat-history-day">{formatDay(session.day)}</div>
+                      <div className="chat-history-meta">
+                        Updated {formatTimestamp(session.updated_at)}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </aside>

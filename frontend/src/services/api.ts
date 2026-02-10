@@ -15,6 +15,18 @@ export type ChatHistoryResponse = {
   messages: { role: string; timestamp: string; content: string }[];
 };
 
+export type ChatSession = {
+  session_id: string;
+  day: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ChatSessionsResponse = {
+  active_session_id?: string;
+  sessions: ChatSession[];
+};
+
 export type Profile = {
   profile_id: string;
   name: string;
@@ -55,6 +67,24 @@ export async function fetchHistory(): Promise<ChatHistoryResponse> {
     throw new Error("History fetch failed");
   }
   return response.json() as Promise<ChatHistoryResponse>;
+}
+
+export async function fetchHistoryForSession(
+  sessionId: string
+): Promise<ChatHistoryResponse> {
+  const response = await fetch(`${API_BASE_URL}/chat/history?session_id=${sessionId}`);
+  if (!response.ok) {
+    throw new Error("History fetch failed");
+  }
+  return response.json() as Promise<ChatHistoryResponse>;
+}
+
+export async function fetchChatSessions(): Promise<ChatSessionsResponse> {
+  const response = await fetch(`${API_BASE_URL}/chat/sessions`);
+  if (!response.ok) {
+    throw new Error("Chat sessions fetch failed");
+  }
+  return response.json() as Promise<ChatSessionsResponse>;
 }
 
 export async function fetchProfiles(): Promise<ProfilesListResponse> {

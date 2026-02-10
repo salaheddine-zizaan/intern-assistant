@@ -43,7 +43,7 @@ class Orchestrator:
         self.obsidian.vault_path = Path(profile["vault_root"])
         self.obsidian.ensure_vault()
         self.reader.obsidian = self.obsidian
-        self.session_id = self.memory.get_or_create_latest_session(profile["profile_id"])
+        self.session_id = self.memory.get_or_create_daily_session(profile["profile_id"])
 
     @classmethod
     def build(cls) -> "Orchestrator":
@@ -64,7 +64,7 @@ class Orchestrator:
         if profile:
             obsidian.vault_path = Path(profile["vault_root"])
             obsidian.ensure_vault()
-            session_id = memory.get_or_create_latest_session(profile["profile_id"])
+            session_id = memory.get_or_create_daily_session(profile["profile_id"])
         else:
             session_id = None
 

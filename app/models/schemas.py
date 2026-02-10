@@ -85,6 +85,11 @@ class ChatHistoryResponse(BaseModel):
     messages: List[dict]
 
 
+class ChatSessionsResponse(BaseModel):
+    active_session_id: Optional[str] = None
+    sessions: List[dict]
+
+
 class ChatMessageRequest(BaseModel):
     text: str
     date: Optional[str] = None

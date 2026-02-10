@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, date
 from pathlib import Path
 import sqlite3
 from typing import List, Dict, Optional
@@ -32,6 +32,48 @@ class MemoryService:
             )
             conn.commit()
             return session_id
+
+    def get_or_create_daily_session(self, profile_id: str, day: str | None = None) -> str:
+        if day:
+            day_value = date.fromisoformat(day)
+        else:
+            day_value = datetime.now().date()
+        session_id = f"day-{day_value.isoformat()}"
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT session_id FROM chat_sessions WHERE session_id = ? AND profile_id = ?",
+                (session_id, profile_id),
+            ).fetchone()
+            if row:
+                return row[0]
+            now = datetime.now().isoformat()
+            conn.execute(
+                "INSERT INTO chat_sessions (session_id, profile_id, created_at, updated_at) VALUES (?, ?, ?, ?)",
+                (session_id, profile_id, now, now),
+            )
+            conn.commit()
+        return session_id
+
+    def list_sessions(self, profile_id: str, limit: int = 30) -> List[Dict[str, str]]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT session_id, created_at, updated_at FROM chat_sessions "
+                "WHERE profile_id = ? ORDER BY updated_at DESC LIMIT ?",
+                (profile_id, limit),
+            ).fetchall()
+        sessions: List[Dict[str, str]] = []
+        for row in rows:
+            session_id = row[0]
+            day_label = session_id.replace("day-", "")
+            sessions.append(
+                {
+                    "session_id": session_id,
+                    "day": day_label,
+                    "created_at": row[1],
+                    "updated_at": row[2],
+                }
+            )
+        return sessions
 
     def update_session_timestamp(self, session_id: str) -> None:
         with self._connect() as conn:
