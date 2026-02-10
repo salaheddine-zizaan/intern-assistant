@@ -2,6 +2,8 @@
   font-family: "Archivo", "Segoe UI", sans-serif;
   color: #e2e8f0;
   background: radial-gradient(circle at top, #0b0f1f 0%, #111827 45%, #0f172a 100%);
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
 }
 
 * {
@@ -12,12 +14,25 @@ body {
   margin: 0;
   min-height: 100vh;
   background: radial-gradient(circle at top, #0b0f1f 0%, #111827 45%, #0f172a 100%);
+  position: relative;
+  overflow-x: hidden;
+}
+
+.background-glow {
+  position: fixed;
+  inset: -30% 0 auto 0;
+  height: 60vh;
+  background: radial-gradient(circle at 20% 20%, rgba(56, 189, 248, 0.16), transparent 45%),
+    radial-gradient(circle at 80% 10%, rgba(99, 102, 241, 0.18), transparent 55%);
+  pointer-events: none;
+  z-index: -1;
+  filter: blur(10px);
 }
 
 .shell {
-  max-width: 1280px;
+  max-width: 1480px;
   margin: 0 auto;
-  padding: 28px 24px 60px;
+  padding: 28px 32px 60px;
   display: grid;
   gap: 18px;
 }
@@ -31,7 +46,7 @@ body {
   background: linear-gradient(140deg, #111827, #0f172a);
   border-radius: 24px;
   padding: 16px 20px;
-  box-shadow: 0 24px 60px rgba(3, 7, 18, 0.6);
+  box-shadow: 0 28px 60px rgba(3, 7, 18, 0.65);
   animation: floatIn 0.6s ease-out;
   border: 1px solid rgba(34, 211, 238, 0.15);
   overflow: visible;
@@ -50,6 +65,7 @@ body {
   margin: 6px 0;
   font-size: clamp(22px, 3.2vw, 30px);
   line-height: 1.1;
+  letter-spacing: -0.02em;
 }
 
 .brand p {
@@ -100,6 +116,14 @@ body {
   color: #e2e8f0;
 }
 
+.control-group select:focus-visible,
+.input-box textarea:focus-visible,
+.onboarding-section input:focus-visible,
+.modal-grid input:focus-visible {
+  outline: 2px solid rgba(34, 211, 238, 0.7);
+  outline-offset: 2px;
+}
+
 .workspace {
   display: grid;
   grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.6fr) minmax(0, 0.7fr);
@@ -120,6 +144,14 @@ body {
   padding: 18px;
   border: 1px solid rgba(148, 163, 184, 0.2);
   box-shadow: 0 18px 32px rgba(3, 7, 18, 0.45);
+  transition: transform 0.2s ease, border 0.2s ease, box-shadow 0.2s ease;
+}
+
+.sidebar-card:hover,
+.inspector-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(56, 189, 248, 0.4);
+  box-shadow: 0 22px 40px rgba(3, 7, 18, 0.55);
 }
 
 .sidebar-title,
@@ -150,6 +182,10 @@ body {
   border-color: rgba(34, 211, 238, 0.6);
 }
 
+.template-item:active {
+  transform: translateY(0);
+}
+
 .sidebar-list {
   margin: 0;
   padding-left: 18px;
@@ -175,6 +211,10 @@ body {
   color: #e2e8f0;
   backdrop-filter: blur(8px);
   animation: fadeIn 0.4s ease-out;
+}
+
+.status-bar.loading .status-label {
+  animation: shimmer 1.2s infinite ease-in-out;
 }
 
 .status-bar.loading {
@@ -203,7 +243,7 @@ body {
   background: rgba(15, 23, 42, 0.7);
   border-radius: 24px;
   min-height: 520px;
-  box-shadow: 0 24px 40px rgba(3, 7, 18, 0.55);
+  box-shadow: 0 28px 48px rgba(3, 7, 18, 0.55);
   backdrop-filter: blur(12px);
   max-height: 60vh;
   overflow-y: auto;
@@ -265,6 +305,7 @@ body {
   line-height: 1.5;
   box-shadow: 0 12px 24px rgba(3, 7, 18, 0.35);
   animation: slideUp 0.35s ease-out;
+  position: relative;
 }
 
 .bubble.user {
@@ -278,6 +319,27 @@ body {
   background: #0f172a;
   border: 1px solid rgba(148, 163, 184, 0.2);
   color: #e2e8f0;
+}
+
+.bubble.user::after,
+.bubble.assistant::after {
+  content: "";
+  position: absolute;
+  bottom: 6px;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  background: inherit;
+}
+
+.bubble.user::after {
+  right: -4px;
+  transform: rotate(45deg);
+}
+
+.bubble.assistant::after {
+  left: -4px;
+  transform: rotate(45deg);
 }
 
 .typing-bubble {
@@ -422,6 +484,12 @@ body {
   font-weight: 600;
   cursor: pointer;
   min-width: 160px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.profile-cta:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 22px rgba(14, 116, 144, 0.35);
 }
 
 .profile-cta-label {
@@ -477,6 +545,8 @@ body {
   flex-direction: column;
   gap: 18px;
   border: 1px solid rgba(148, 163, 184, 0.2);
+  max-width: 720px;
+  margin: 0 auto;
 }
 
 .onboarding-section h2 {
@@ -484,15 +554,35 @@ body {
   font-size: 18px;
 }
 
-.onboarding-section input {
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.field span {
+  opacity: 0.75;
+}
+
+.field input {
   width: 100%;
   padding: 10px 12px;
   border-radius: 10px;
   border: 1px solid rgba(148, 163, 184, 0.3);
-  margin-bottom: 10px;
   font-family: inherit;
   background: rgba(15, 23, 42, 0.6);
   color: #e2e8f0;
+}
+
+.onboarding-section .field + .field {
+  margin-top: 10px;
 }
 
 .onboarding-section p {
@@ -509,6 +599,12 @@ body {
   padding: 10px 16px;
   font-weight: 600;
   cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 20px rgba(34, 211, 238, 0.35);
 }
 
 .profile-list {
@@ -656,6 +752,16 @@ body {
   }
 }
 
+@keyframes shimmer {
+  0%,
+  100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
 @keyframes typingPulse {
   0%,
   100% {
@@ -685,5 +791,9 @@ body {
 
   .bubble {
     max-width: 90%;
+  }
+
+  .form-grid {
+    grid-template-columns: 1fr;
   }
 }

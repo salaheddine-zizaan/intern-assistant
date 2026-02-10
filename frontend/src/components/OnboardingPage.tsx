@@ -38,34 +38,51 @@ export default function OnboardingPage({ onCreated }: Props) {
     <div className="onboarding-card">
       <div className="onboarding-section">
         <h2>About you</h2>
-        <input
-          placeholder="Your name"
-          value={name}
-          onChange={(event) => setName(event.target.value)}
-        />
+        <label className="field">
+          <span>Your name</span>
+          <input
+            placeholder="e.g. Salah"
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+          />
+        </label>
       </div>
       <div className="onboarding-section">
         <h2>Internship</h2>
-        <input
-          placeholder="Internship name"
-          value={internshipName}
-          onChange={(event) => setInternshipName(event.target.value)}
-        />
-        <input
-          placeholder="Company (optional)"
-          value={company}
-          onChange={(event) => setCompany(event.target.value)}
-        />
-        <input
-          placeholder="Role (optional)"
-          value={role}
-          onChange={(event) => setRole(event.target.value)}
-        />
-        <input
-          type="date"
-          value={startDate}
-          onChange={(event) => setStartDate(event.target.value)}
-        />
+        <div className="form-grid">
+          <label className="field">
+            <span>Internship name</span>
+            <input
+              placeholder="e.g. AI Operations"
+              value={internshipName}
+              onChange={(event) => setInternshipName(event.target.value)}
+            />
+          </label>
+          <label className="field">
+            <span>Start date</span>
+            <input
+              type="date"
+              value={startDate}
+              onChange={(event) => setStartDate(event.target.value)}
+            />
+          </label>
+          <label className="field">
+            <span>Company (optional)</span>
+            <input
+              placeholder="e.g. ENSI"
+              value={company}
+              onChange={(event) => setCompany(event.target.value)}
+            />
+          </label>
+          <label className="field">
+            <span>Role (optional)</span>
+            <input
+              placeholder="e.g. AI Intern"
+              value={role}
+              onChange={(event) => setRole(event.target.value)}
+            />
+          </label>
+        </div>
       </div>
       <div className="onboarding-section">
         <h2>Vault location</h2>
@@ -93,11 +110,14 @@ export default function OnboardingPage({ onCreated }: Props) {
             {vaultLabel || "No folder selected"}
           </span>
         </div>
-        <input
-          placeholder="Optional absolute path (if known)"
-          value={vaultRoot}
-          onChange={(event) => setVaultRoot(event.target.value)}
-        />
+        <label className="field">
+          <span>Optional absolute path</span>
+          <input
+            placeholder="C:\\Users\\You\\Documents\\Internship Vault"
+            value={vaultRoot}
+            onChange={(event) => setVaultRoot(event.target.value)}
+          />
+        </label>
         <p>
           We will create the vault structure inside this folder. Browsers cannot
           read absolute paths; you can paste it manually if needed.

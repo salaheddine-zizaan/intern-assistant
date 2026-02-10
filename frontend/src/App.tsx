@@ -128,6 +128,7 @@ export default function App() {
   if (showOnboarding) {
     return (
       <div className="shell">
+        <div className="background-glow" />
         <header className="topbar">
           <div className="brand">
             <span className="brand-kicker">Intern Assistant</span>
@@ -151,6 +152,7 @@ export default function App() {
   if (showSelector) {
     return (
       <div className="shell">
+        <div className="background-glow" />
         <header className="topbar">
           <div className="brand">
             <span className="brand-kicker">Intern Assistant</span>
@@ -177,6 +179,7 @@ export default function App() {
 
   return (
     <div className="shell">
+      <div className="background-glow" />
       <header className="topbar">
         <div className="brand">
           <span className="brand-kicker">Astra Internship Copilot</span>
