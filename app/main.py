@@ -28,7 +28,7 @@ from app.models.schemas import (
     TaskExtractResponse,
 )
 from app.orchestrator import Orchestrator
-from app.config import DATABASE_PATH
+from app.config import DATABASE_PATH, VAULT_PATH
 from app.services.profile_service import ProfileService
 
 

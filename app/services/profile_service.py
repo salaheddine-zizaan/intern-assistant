@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+import uuid
 from pathlib import Path
 import sqlite3
 from typing import List, Dict, Optional
@@ -38,7 +39,7 @@ class ProfileService:
         start_date: Optional[str] = None,
         activate: bool = True,
     ) -> Dict[str, str]:
-        profile_id = datetime.now().strftime("profile-%Y%m%d-%H%M%S")
+        profile_id = f"profile-{uuid.uuid4().hex}"
         with self._connect() as conn:
             if activate:
                 conn.execute("UPDATE profiles SET active = 0")

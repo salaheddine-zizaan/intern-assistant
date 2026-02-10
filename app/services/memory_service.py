@@ -38,7 +38,7 @@ class MemoryService:
             day_value = date.fromisoformat(day)
         else:
             day_value = datetime.now().date()
-        session_id = f"day-{day_value.isoformat()}"
+        session_id = f"day-{day_value.isoformat()}-{profile_id}"
         with self._connect() as conn:
             row = conn.execute(
                 "SELECT session_id FROM chat_sessions WHERE session_id = ? AND profile_id = ?",
@@ -64,7 +64,14 @@ class MemoryService:
         sessions: List[Dict[str, str]] = []
         for row in rows:
             session_id = row[0]
-            day_label = session_id.replace("day-", "")
+            if session_id.startswith("day-"):
+                parts = session_id.split("-")
+                if len(parts) >= 4:
+                    day_label = "-".join(parts[1:4])
+                else:
+                    day_label = session_id.replace("day-", "")
+            else:
+                day_label = session_id
             sessions.append(
                 {
                     "session_id": session_id,

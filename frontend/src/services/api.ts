@@ -109,7 +109,9 @@ export async function createProfile(
     body: JSON.stringify({ internship_name, ...options })
   });
   if (!response.ok) {
-    throw new Error("Profile create failed");
+    const payload = await response.json().catch(() => null);
+    const detail = payload?.detail || "Profile create failed";
+    throw new Error(detail);
   }
   return response.json() as Promise<Profile>;
 }

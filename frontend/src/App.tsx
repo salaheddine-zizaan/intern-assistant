@@ -13,6 +13,7 @@ import {
 } from "./services/api";
 import OnboardingPage from "./components/OnboardingPage";
 import ProfileSelector from "./components/ProfileSelector";
+import TutorialPage from "./components/TutorialPage";
 
 export type Message = {
   id: string;
@@ -42,6 +43,7 @@ export default function App() {
   const [showSelector, setShowSelector] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showEditProfile, setShowEditProfile] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(false);
   const [model, setModel] = useState<string>(() => {
     return localStorage.getItem("llm-model") || "gemini-2-flash";
   });
@@ -114,6 +116,12 @@ export default function App() {
         setActiveProfileId(data.active_profile_id);
         setShowOnboarding(data.profiles.length === 0);
         setShowSelector(data.profiles.length > 0 && !data.active_profile_id);
+        if (data.active_profile_id) {
+          const seen = localStorage.getItem(`tutorial:${data.active_profile_id}`);
+          if (!seen) {
+            setShowTutorial(true);
+          }
+        }
       })
       .catch(() => {
         setStatusMessage("Unable to load profiles");
@@ -151,6 +159,9 @@ export default function App() {
       setStatus("success");
       setStatusMessage("Done");
       loadSessions();
+      if (response.message.toLowerCase().includes("no active profile")) {
+        setShowOnboarding(true);
+      }
     } catch (error) {
       setStatus("error");
       setStatusMessage("Request failed");
@@ -180,8 +191,25 @@ export default function App() {
             setActiveProfileId(profile.profile_id);
             setShowOnboarding(false);
             setShowSelector(false);
+            setShowTutorial(true);
             loadHistory();
             loadSessions();
+          }}
+        />
+      </div>
+    );
+  }
+
+  if (showTutorial) {
+    return (
+      <div className="shell">
+        <div className="background-glow" />
+        <TutorialPage
+          onClose={() => {
+            if (activeProfileId) {
+              localStorage.setItem(`tutorial:${activeProfileId}`, "seen");
+            }
+            setShowTutorial(false);
           }}
         />
       </div>
@@ -205,6 +233,10 @@ export default function App() {
             await switchProfile(profileId);
             setActiveProfileId(profileId);
             setShowSelector(false);
+            const seen = localStorage.getItem(`tutorial:${profileId}`);
+            if (!seen) {
+              setShowTutorial(true);
+            }
             loadHistory();
             loadSessions();
           }}

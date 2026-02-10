@@ -17,21 +17,33 @@ export default function OnboardingPage({ onCreated }: Props) {
   const [startDate, setStartDate] = useState("");
   const [vaultRoot, setVaultRoot] = useState("");
   const [vaultLabel, setVaultLabel] = useState("");
+  const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async () => {
     if (!name.trim() || !internshipName.trim() || !startDate.trim()) {
+      setError("Name, internship name, and start date are required.");
       return;
     }
-    const profile = await createProfile(internshipName, {
-      name,
-      start_date: startDate,
-      vault_root: vaultRoot || undefined
-    });
-    localStorage.setItem(
-      `profile:${profile.profile_id}:details`,
-      JSON.stringify({ company, role })
-    );
-    onCreated(profile);
+    setError("");
+    setIsSubmitting(true);
+    try {
+      const profile = await createProfile(internshipName, {
+        name,
+        start_date: startDate,
+        vault_root: vaultRoot || undefined
+      });
+      localStorage.setItem(
+        `profile:${profile.profile_id}:details`,
+        JSON.stringify({ company, role })
+      );
+      onCreated(profile);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unable to create profile.";
+      setError(message);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -47,6 +59,7 @@ export default function OnboardingPage({ onCreated }: Props) {
           />
         </label>
       </div>
+      {error && <div className="form-error">{error}</div>}
       <div className="onboarding-section">
         <h2>Internship</h2>
         <div className="form-grid">
@@ -124,7 +137,7 @@ export default function OnboardingPage({ onCreated }: Props) {
         </p>
       </div>
       <button type="button" className="primary" onClick={handleSubmit}>
-        Create profile
+        {isSubmitting ? "Creating..." : "Create profile"}
       </button>
     </div>
   );

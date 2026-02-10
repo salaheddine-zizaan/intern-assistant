@@ -674,6 +674,15 @@ body {
   opacity: 0.7;
 }
 
+.form-error {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  color: #fecaca;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 13px;
+}
+
 .primary {
   border: none;
   border-radius: 12px;
@@ -843,6 +852,152 @@ body {
   cursor: pointer;
 }
 
+.tutorial-shell {
+  display: flex;
+  justify-content: center;
+}
+
+.tutorial-card {
+  background: rgba(15, 23, 42, 0.85);
+  border-radius: 24px;
+  padding: 28px;
+  box-shadow: 0 30px 60px rgba(3, 7, 18, 0.55);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  max-width: 980px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  animation: slideFade 0.45s ease-out;
+}
+
+.tutorial-card.last {
+  border-color: rgba(34, 211, 238, 0.6);
+  box-shadow: 0 34px 70px rgba(3, 7, 18, 0.65);
+}
+
+.tutorial-progress {
+  display: flex;
+  gap: 8px;
+}
+
+.tutorial-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.35);
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.tutorial-dot.active {
+  background: rgba(34, 211, 238, 0.9);
+  transform: scale(1.1);
+}
+
+.tutorial-header h2 {
+  margin: 8px 0;
+}
+
+.tutorial-header p {
+  margin: 0;
+  opacity: 0.75;
+  line-height: 1.6;
+}
+
+.tutorial-kicker {
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  font-size: 11px;
+  opacity: 0.7;
+}
+
+.tutorial-body {
+  background: rgba(15, 23, 42, 0.65);
+  border-radius: 16px;
+  padding: 18px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  animation: stepRise 0.4s ease-out;
+}
+
+.tutorial-body ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.tutorial-body li {
+  line-height: 1.7;
+  opacity: 0.85;
+}
+
+.tutorial-example {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: rgba(30, 41, 59, 0.7);
+  border-radius: 12px;
+  padding: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  font-size: 13px;
+}
+
+.tutorial-tree {
+  margin: 0;
+  background: rgba(15, 23, 42, 0.85);
+  border-radius: 12px;
+  padding: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre;
+}
+
+.tutorial-example span {
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 10px;
+  opacity: 0.7;
+}
+
+.tutorial-example code {
+  font-family: "Archivo", "Segoe UI", sans-serif;
+  color: #e2e8f0;
+}
+
+.tutorial-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.tutorial-actions.center {
+  justify-content: center;
+}
+
+.primary-highlight {
+  position: relative;
+  padding: 16px 30px;
+  font-size: 16px;
+  box-shadow: 0 18px 36px rgba(34, 211, 238, 0.4);
+  animation: glowPulse 1.6s ease-in-out infinite;
+}
+
+.primary-highlight::after {
+  content: "";
+  position: absolute;
+  inset: -10px;
+  border-radius: 20px;
+  background: radial-gradient(
+    circle at center,
+    rgba(34, 211, 238, 0.4),
+    transparent 65%
+  );
+  opacity: 0.6;
+  z-index: -1;
+}
+
 @keyframes floatIn {
   from {
     transform: translateY(12px);
@@ -896,6 +1051,40 @@ body {
   }
 }
 
+@keyframes slideFade {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes stepRise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes glowPulse {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+    box-shadow: 0 16px 32px rgba(34, 211, 238, 0.45);
+  }
+  50% {
+    transform: translateY(-2px) scale(1.03);
+    box-shadow: 0 24px 44px rgba(34, 211, 238, 0.6);
+  }
+}
+
 @media (max-width: 1080px) {
   .workspace {
     grid-template-columns: 1fr;
@@ -925,5 +1114,9 @@ body {
 
   .sidebar-metrics {
     grid-template-columns: 1fr;
+  }
+
+  .tutorial-body {
+    padding: 16px;
   }
 }
