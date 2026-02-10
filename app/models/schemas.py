@@ -53,6 +53,7 @@ class ProgressDailyResponse(BaseModel):
     status: str
     daily_log_path: str
     weekly_log_path: str
+    message: Optional[str] = None
 
 
 class ReportWeeklyResponse(BaseModel):
@@ -114,3 +115,11 @@ class ProfileResponse(BaseModel):
 class ProfilesListResponse(BaseModel):
     active_profile_id: Optional[str]
     profiles: List[ProfileResponse]
+
+
+class ProfileUpdateRequest(BaseModel):
+    profile_id: str
+    name: Optional[str] = None
+    internship_name: Optional[str] = None
+    start_date: Optional[str] = None
+    vault_root: Optional[str] = None

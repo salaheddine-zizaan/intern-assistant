@@ -95,3 +95,21 @@ export async function switchProfile(profile_id: string): Promise<Profile> {
   }
   return response.json() as Promise<Profile>;
 }
+
+export async function updateProfile(payload: {
+  profile_id: string;
+  name?: string;
+  internship_name?: string;
+  start_date?: string;
+  vault_root?: string;
+}): Promise<Profile> {
+  const response = await fetch(`${API_BASE_URL}/profiles/update`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+  if (!response.ok) {
+    throw new Error("Profile update failed");
+  }
+  return response.json() as Promise<Profile>;
+}

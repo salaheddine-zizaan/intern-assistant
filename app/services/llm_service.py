@@ -59,6 +59,19 @@ class LLMService:
             result = chain.invoke({"system": system_prompt, "user": user_prompt})
             return result.content
         except Exception as exc:
+            if self._is_model_not_found(exc):
+                if self.model_name != "gemini-1.5-flash-001":
+                    self.set_model("gemini-1.5-flash-001")
+                    refreshed_chain = (
+                        ChatPromptTemplate.from_messages(
+                            [("system", "{system}"), ("user", "{user}")]
+                        )
+                        | self.model
+                    )
+                    result = refreshed_chain.invoke(
+                        {"system": system_prompt, "user": user_prompt}
+                    )
+                    return result.content
             if self._is_auth_error(exc):
                 if self._refresh_api_key():
                     refreshed_chain = (
@@ -72,6 +85,10 @@ class LLMService:
                     )
                     return result.content
             raise
+
+    def _is_model_not_found(self, exc: Exception) -> bool:
+        text = str(exc)
+        return "NOT_FOUND" in text and "models/" in text
 
     def _is_auth_error(self, exc: Exception) -> bool:
         text = str(exc).lower()

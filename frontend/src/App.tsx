@@ -6,7 +6,8 @@ import {
   fetchHistory,
   fetchProfiles,
   sendMessage,
-  switchProfile
+  switchProfile,
+  updateProfile
 } from "./services/api";
 import OnboardingPage from "./components/OnboardingPage";
 import ProfileSelector from "./components/ProfileSelector";
@@ -35,6 +36,7 @@ export default function App() {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showSelector, setShowSelector] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [showEditProfile, setShowEditProfile] = useState(false);
   const [model, setModel] = useState<string>(() => {
     return localStorage.getItem("llm-model") || "gemini-2-flash";
   });
@@ -200,11 +202,14 @@ export default function App() {
           <div className="profile-menu">
             <button
               type="button"
-              className="profile-button"
+              className="profile-cta"
               onClick={() => setShowProfileMenu((prev) => !prev)}
             >
-              {profiles.find((p) => p.profile_id === activeProfileId)?.internship_name ||
-                "Profile"}
+              <span className="profile-cta-label">
+                {profiles.find((p) => p.profile_id === activeProfileId)?.internship_name ||
+                  "Profile"}
+              </span>
+              <span className="profile-cta-sub">Manage profile</span>
             </button>
             {showProfileMenu && (
               <div className="profile-dropdown">
@@ -229,6 +234,15 @@ export default function App() {
                   }}
                 >
                   New profile
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowEditProfile(true);
+                    setShowProfileMenu(false);
+                  }}
+                >
+                  Edit profile
                 </button>
                 <button
                   type="button"
@@ -275,7 +289,7 @@ export default function App() {
         </aside>
         <main className="chat-panel">
           <StatusBar status={status} message={statusMessage} />
-          <ChatWindow messages={messages} />
+          <ChatWindow messages={messages} loading={status === "loading"} />
           <InputBox
             value={inputValue}
             onChange={setInputValue}
@@ -308,6 +322,73 @@ export default function App() {
           </div>
         </aside>
       </div>
+      {showEditProfile && (
+        <div className="modal">
+          <div className="modal-card">
+            <h2>Edit profile</h2>
+            <div className="modal-grid">
+              <input
+                placeholder="Name"
+                defaultValue={
+                  profiles.find((p) => p.profile_id === activeProfileId)?.name || ""
+                }
+                id="profile-name"
+              />
+              <input
+                placeholder="Internship name"
+                defaultValue={
+                  profiles.find((p) => p.profile_id === activeProfileId)?.internship_name || ""
+                }
+                id="profile-internship"
+              />
+              <input
+                placeholder="Start date (YYYY-MM-DD)"
+                defaultValue={
+                  profiles.find((p) => p.profile_id === activeProfileId)?.start_date || ""
+                }
+                id="profile-start-date"
+              />
+              <input placeholder="Vault root" id="profile-vault" />
+            </div>
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="ghost"
+                onClick={() => setShowEditProfile(false)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="primary"
+                onClick={async () => {
+                  const payload = {
+                    profile_id: activeProfileId || "",
+                    name: (document.getElementById("profile-name") as HTMLInputElement)
+                      ?.value,
+                    internship_name: (
+                      document.getElementById("profile-internship") as HTMLInputElement
+                    )?.value,
+                    start_date: (
+                      document.getElementById("profile-start-date") as HTMLInputElement
+                    )?.value,
+                    vault_root: (
+                      document.getElementById("profile-vault") as HTMLInputElement
+                    )?.value
+                  };
+                  const updated = await updateProfile(payload);
+                  setProfiles((prev) =>
+                    prev.map((p) => (p.profile_id === updated.profile_id ? updated : p))
+                  );
+                  setShowEditProfile(false);
+                }}
+              >
+                Save changes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -58,9 +58,9 @@ class MeetingAgent:
             lines.extend(["", "## Participants"] + [f"- {p}" for p in summary.participants])
 
         content = "\n".join(lines).rstrip() + "\n"
-        slug = self.obsidian.slugify(title)
         meetings_base = self.obsidian.week_subpath(date_value, "Meetings")
-        meeting_path = meetings_base / f"{slug}.md"
+        filename = self.obsidian.build_filename(title, date_value, "meeting")
+        meeting_path = meetings_base / filename
         self.obsidian.write_markdown(meeting_path, content)
 
         tasks = [TaskItem(description=item) for item in summary.action_items]

@@ -58,7 +58,7 @@ class ReportAgent:
 
         content = "\n".join(lines).rstrip() + "\n"
         report_base = self.obsidian.report_base_path(week_ending)
-        report_path = report_base / f"{week_ending.isoformat()}.md"
+        report_path = report_base / f"{week_ending.isoformat()}-weekly-report.md"
         self.obsidian.write_markdown(report_path, content)
         return report_path, week_ending
 

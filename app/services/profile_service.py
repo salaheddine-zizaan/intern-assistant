@@ -69,6 +69,48 @@ class ProfileService:
             conn.commit()
         return self.get_active_profile()
 
+    def update_profile(
+        self,
+        profile_id: str,
+        name: Optional[str] = None,
+        internship_name: Optional[str] = None,
+        start_date: Optional[str] = None,
+        vault_root: Optional[str] = None,
+    ) -> Optional[Dict[str, str]]:
+        fields = []
+        values = []
+        if name is not None:
+            fields.append("name = ?")
+            values.append(name)
+        if internship_name is not None:
+            fields.append("internship_name = ?")
+            values.append(internship_name)
+        if start_date is not None:
+            fields.append("start_date = ?")
+            values.append(start_date)
+        if vault_root is not None:
+            fields.append("vault_root = ?")
+            values.append(vault_root)
+        if not fields:
+            return self.get_active_profile()
+        values.append(profile_id)
+        with self._connect() as conn:
+            conn.execute(
+                f"UPDATE profiles SET {', '.join(fields)} WHERE profile_id = ?",
+                values,
+            )
+            conn.commit()
+        return self.get_profile(profile_id)
+
+    def get_profile(self, profile_id: str) -> Optional[Dict[str, str]]:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT profile_id, name, internship_name, start_date, vault_root, active "
+                "FROM profiles WHERE profile_id = ?",
+                (profile_id,),
+            ).fetchone()
+        return self._row_to_profile(row) if row else None
+
     def ensure_default_profile(self, vault_root: str) -> Dict[str, str]:
         active = self.get_active_profile()
         if active:

@@ -15,6 +15,7 @@ from app.models.schemas import (
     ProfileResponse,
     ProfilesListResponse,
     ProfileSwitchRequest,
+    ProfileUpdateRequest,
     MeetingSummarizeRequest,
     MeetingSummarizeResponse,
     NotesOrganizeRequest,
@@ -110,6 +111,7 @@ def daily_progress(payload: ProgressDailyRequest) -> ProgressDailyResponse:
         status="ok",
         daily_log_path=str(log_path),
         weekly_log_path=str(weekly_path),
+        message="Progress files created. You can review the daily log and weekly summary.",
     )
 
 
@@ -157,6 +159,15 @@ def _parse_progress_text(text: str) -> tuple[list[str], list[str], list[str]]:
         else:
             done.append(line)
     return done, blockers, next_steps
+
+
+def _llm_error_message(exc: Exception) -> str:
+    text = str(exc)
+    if "NOT_FOUND" in text and "models/" in text:
+        return "Selected model is not available. Choose another model from the selector."
+    if "getaddrinfo failed" in text or "ConnectError" in text:
+        return "Network error while contacting the model API. Check your internet connection."
+    return "LLM request failed. Please try again or change the model."
 
 
 def _route_action(text: str) -> str:
@@ -349,14 +360,23 @@ def _handle_message(payload: CommandRequest) -> CommandResponse:
         "today's progress",
         "status update",
     ]
-    if any(trigger in lower for trigger in read_only_triggers):
-        decision = orchestrator.brain.decide(
-            text, history=history
+    try:
+        if any(trigger in lower for trigger in read_only_triggers):
+            decision = orchestrator.brain.decide(text, history=history)
+            decision.intent = "read_only"
+            decision.action = "talk"
+        else:
+            decision = orchestrator.brain.decide(text, history=history)
+    except Exception as exc:
+        return CommandResponse(
+            status="error",
+            actions=[],
+            files=[],
+            message=_llm_error_message(exc),
+            intent="conversation",
+            action="talk",
+            reason="LLM unavailable",
         )
-        decision.intent = "read_only"
-        decision.action = "talk"
-    else:
-        decision = orchestrator.brain.decide(text, history=history)
     orchestrator.memory.update_state(
         profile_id=profile_id,
         session_id=session_id,
@@ -383,7 +403,18 @@ def _handle_message(payload: CommandRequest) -> CommandResponse:
             "Do not mention file operations or imply changes."
         )
         user_prompt = f"Question: {text}\n\nExisting data:\n{context}"
-        reply = orchestrator.brain.llm.invoke(system_prompt, user_prompt)
+        try:
+            reply = orchestrator.brain.llm.invoke(system_prompt, user_prompt)
+        except Exception as exc:
+            return CommandResponse(
+                status="error",
+                actions=[],
+                files=[],
+                message=_llm_error_message(exc),
+                intent=decision.intent,
+                action="talk",
+                reason="LLM unavailable",
+            )
         orchestrator.memory.add_message(profile_id, session_id, "user", text)
         orchestrator.memory.add_message(profile_id, session_id, "assistant", reply)
         return CommandResponse(
@@ -398,7 +429,18 @@ def _handle_message(payload: CommandRequest) -> CommandResponse:
         )
 
     if decision.action == "talk":
-        reply = orchestrator.brain.respond(text, history=history)
+        try:
+            reply = orchestrator.brain.respond(text, history=history)
+        except Exception as exc:
+            return CommandResponse(
+                status="error",
+                actions=[],
+                files=[],
+                message=_llm_error_message(exc),
+                intent=decision.intent,
+                action=decision.action,
+                reason="LLM unavailable",
+            )
         orchestrator.memory.add_message(profile_id, session_id, "user", text)
         orchestrator.memory.add_message(profile_id, session_id, "assistant", reply)
         return CommandResponse(
@@ -513,7 +555,7 @@ def _handle_message(payload: CommandRequest) -> CommandResponse:
         actions.append("progress_logged")
         actions.append("weekly_progress_generated")
         files.extend([str(log_path), str(weekly_path)])
-        message = "Daily progress logged and weekly summary updated."
+        message = "Progress files created. You can review the daily log and weekly summary."
         if not blockers:
             message += " Share any blockers to keep the tasks follow-up accurate."
         orchestrator.memory.add_message(profile_id, session_id, "assistant", message)
@@ -633,4 +675,20 @@ def profiles_switch(payload: ProfileSwitchRequest) -> ProfileResponse:
     if not profile:
         raise HTTPException(status_code=404, detail="profile not found")
     orchestrator.switch_profile(profile)
+    return ProfileResponse(**profile)
+
+
+@app.post("/profiles/update", response_model=ProfileResponse)
+def profiles_update(payload: ProfileUpdateRequest) -> ProfileResponse:
+    profile = profile_service.update_profile(
+        profile_id=payload.profile_id,
+        name=payload.name,
+        internship_name=payload.internship_name,
+        start_date=payload.start_date,
+        vault_root=payload.vault_root,
+    )
+    if not profile:
+        raise HTTPException(status_code=404, detail="profile not found")
+    if orchestrator.profile and orchestrator.profile["profile_id"] == profile["profile_id"]:
+        orchestrator.switch_profile(profile)
     return ProfileResponse(**profile)

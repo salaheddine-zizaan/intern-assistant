@@ -62,6 +62,21 @@ class ObsidianService:
         lines.append("---")
         return "\n".join(lines)
 
+    def build_filename(self, title: str, date_value: str | date_type | None, suffix: str) -> str:
+        date_str = self.parse_date(date_value).isoformat()
+        slug = self.slugify(title)
+        stopwords = {
+            "the", "a", "an", "and", "or", "for", "to", "of", "on", "in", "with", "by",
+            "about", "from", "at", "as", "is", "are", "was", "were", "be", "this", "that",
+        }
+        slug_parts = [part for part in slug.split("-") if part and part not in stopwords]
+        if not slug_parts:
+            slug_parts = [part for part in slug.split("-") if part]
+        slug_short = "-".join(slug_parts[:4])
+        if len(slug_short) > 40:
+            slug_short = slug_short[:40].rstrip("-")
+        return f"{date_str}-{slug_short}-{suffix}.md"
+
     def parse_date(self, date_input: str | date_type | None) -> date_type:
         if isinstance(date_input, date_type):
             return date_input

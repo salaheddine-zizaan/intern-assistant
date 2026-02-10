@@ -38,8 +38,8 @@ class NotesAgent:
         body = f"# {title}\n\n{organized.cleaned_markdown.strip()}"
         content = f"{frontmatter}\n\n{body}\n"
 
-        slug = self.obsidian.slugify(title)
         notes_base = self.obsidian.week_subpath(date_value, "Notes")
-        note_path = notes_base / normalized_category / f"{slug}.md"
+        filename = self.obsidian.build_filename(title, date_value, "note")
+        note_path = notes_base / normalized_category / filename
         self.obsidian.write_markdown(note_path, content)
         return note_path, title

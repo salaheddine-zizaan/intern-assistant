@@ -44,9 +44,9 @@ class ProgressAgent:
     ) -> Tuple[Path, Path]:
         date_str = self.obsidian.parse_date(date_value).isoformat()
         progress_base = self.obsidian.week_subpath(date_value, "Progress")
-        log_path = progress_base / f"{date_str}.md"
+        log_path = progress_base / f"{date_str}-daily-progress.md"
 
-        context = self._build_context(date_value)
+        context = self._build_daily_context(date_value)
         daily = self._generate_daily(
             date_str=date_str,
             done=done,
@@ -94,7 +94,7 @@ class ProgressAgent:
         meetings_base = week_base / "Meetings"
         tasks_base = week_base / "Tasks"
 
-        weekly_path = progress_base / "Weekly-Summary.md"
+        weekly_path = progress_base / "weekly-summary.md"
 
         context = self._build_context(date_value)
         weekly = self._generate_weekly(context)
@@ -172,13 +172,45 @@ class ProgressAgent:
         ]
         return "\n".join(context_parts).strip()
 
-    def _read_folder(self, relative_folder: Path) -> str:
+    def _build_daily_context(self, date_value: str | None) -> str:
+        date_str = self.obsidian.parse_date(date_value).isoformat()
+        week_base = self.obsidian.week_base_path(self.obsidian.parse_date(date_value))
+        meetings = self._read_folder(week_base / "Meetings", date_str)
+        notes = self._read_folder(week_base / "Notes", date_str)
+        tasks = self._read_folder(week_base / "Tasks", date_str)
+        progress = self._read_folder(week_base / "Progress", date_str)
+
+        done_tasks, pending_tasks = self._extract_tasks(tasks)
+        task_summary = f"Tasks completed: {len(done_tasks)}; pending: {len(pending_tasks)}"
+
+        context_parts = [
+            f"Date: {date_str}",
+            "",
+            "Meetings today:",
+            meetings or "None.",
+            "",
+            "Notes today:",
+            notes or "None.",
+            "",
+            "Tasks today:",
+            tasks or "None.",
+            "",
+            f"{task_summary}",
+            "",
+            "Progress logs today:",
+            progress or "None.",
+        ]
+        return "\n".join(context_parts).strip()
+
+    def _read_folder(self, relative_folder: Path, date_str: str | None = None) -> str:
         folder = self.obsidian.vault_path / relative_folder
         if not folder.exists():
             return ""
         contents: List[str] = []
         for file_path in sorted(folder.rglob("*.md")):
             if file_path.is_file() and file_path.name.lower() != "weekly-summary.md":
+                if date_str and not file_path.name.startswith(date_str):
+                    continue
                 contents.append(f"## {file_path.name}\n{file_path.read_text(encoding='utf-8')}")
         return "\n\n".join(contents)
 
