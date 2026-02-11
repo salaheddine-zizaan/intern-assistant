@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+import re
 from typing import List, Optional
 
 from pydantic import BaseModel, Field
@@ -91,3 +92,56 @@ class TaskAgent:
             if stripped.startswith("- [ ]"):
                 pending.append(stripped[5:].strip())
         return pending
+
+    def mark_tasks_done(self, done_items: List[str], date_value: str | None = None) -> tuple[Optional[Path], int]:
+        if not done_items:
+            return None, 0
+        date_str = self.obsidian.parse_date(date_value).isoformat()
+        tasks_base = self.obsidian.week_subpath(date_value, "Tasks")
+        task_file = tasks_base / f"{date_str}-tasks.md"
+        full_path = self.obsidian.vault_path / task_file
+        if not full_path.exists():
+            return None, 0
+
+        content = full_path.read_text(encoding="utf-8")
+        done_norm = [self._normalize_text(item) for item in done_items if item.strip()]
+        if not done_norm:
+            return task_file, 0
+
+        updated_lines: List[str] = []
+        marked = 0
+        for line in content.splitlines():
+            stripped = line.strip()
+            if stripped.startswith("- [ ]"):
+                task_text = stripped[5:].strip()
+                task_norm = self._normalize_text(task_text)
+                if self._matches_done(task_norm, done_norm):
+                    indent_match = re.match(r"^\s*", line)
+                    indent = indent_match.group(0) if indent_match else ""
+                    updated_lines.append(f"{indent}- [x] {task_text}")
+                    marked += 1
+                    continue
+            updated_lines.append(line)
+
+        if marked > 0:
+            full_path.write_text("\n".join(updated_lines).rstrip() + "\n", encoding="utf-8")
+        return task_file, marked
+
+    @staticmethod
+    def _normalize_text(text: str) -> str:
+        normalized = re.sub(r"[^a-z0-9\s]", " ", text.lower())
+        return re.sub(r"\s+", " ", normalized).strip()
+
+    def _matches_done(self, task_norm: str, done_norm_list: List[str]) -> bool:
+        if not task_norm:
+            return False
+        for done_norm in done_norm_list:
+            if not done_norm:
+                continue
+            if done_norm in task_norm or task_norm in done_norm:
+                return True
+            task_tokens = set(task_norm.split())
+            done_tokens = set(done_norm.split())
+            if len(task_tokens & done_tokens) >= 3:
+                return True
+        return False

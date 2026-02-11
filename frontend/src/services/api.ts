@@ -6,6 +6,7 @@ export type CommandResponse = {
   intent?: string;
   action?: string;
   reason?: string;
+  notice?: string;
 };
 
 const API_BASE_URL = "http://127.0.0.1:8000";
@@ -19,6 +20,12 @@ export type ChatSession = {
   session_id: string;
   day: string;
   created_at: string;
+  updated_at: string;
+};
+
+export type ProgressCacheResponse = {
+  cache_path: string;
+  last_entry: string;
   updated_at: string;
 };
 
@@ -85,6 +92,14 @@ export async function fetchChatSessions(): Promise<ChatSessionsResponse> {
     throw new Error("Chat sessions fetch failed");
   }
   return response.json() as Promise<ChatSessionsResponse>;
+}
+
+export async function fetchLatestProgressCache(): Promise<ProgressCacheResponse> {
+  const response = await fetch(`${API_BASE_URL}/progress/cache/latest`);
+  if (!response.ok) {
+    throw new Error("Progress cache fetch failed");
+  }
+  return response.json() as Promise<ProgressCacheResponse>;
 }
 
 export async function fetchProfiles(): Promise<ProfilesListResponse> {

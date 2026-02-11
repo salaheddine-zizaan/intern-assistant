@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import List, Tuple
 
@@ -129,6 +130,102 @@ class ProgressAgent:
         content = "\n".join([frontmatter, ""] + sections).rstrip() + "\n"
         self.obsidian.write_markdown(weekly_path, content)
         return weekly_path
+
+    def cache_daily_update(self, raw_text: str, date_value: str | None = None) -> Path:
+        date_str = self.obsidian.parse_date(date_value).isoformat()
+        cache_path = self.daily_cache_path(date_value)
+        timestamp = datetime.now().strftime("%H:%M:%S")
+
+        if (self.obsidian.vault_path / cache_path).exists():
+            lines = [
+                f"## Entry {timestamp}",
+                raw_text.strip(),
+            ]
+            self.obsidian.append_markdown(cache_path, "\n".join(lines).rstrip() + "\n")
+            return cache_path
+
+        frontmatter = self.obsidian.build_frontmatter(
+            f"Daily Draft Cache {date_str}", ["progress", "draft", "cache"]
+        )
+        content = "\n".join(
+            [
+                frontmatter,
+                "",
+                f"# Daily Draft Cache {date_str}",
+                "",
+                f"## Entry {timestamp}",
+                raw_text.strip(),
+                "",
+                "## Notes",
+                "- Review these entries before final save.",
+            ]
+        ).rstrip() + "\n"
+        self.obsidian.write_markdown(cache_path, content)
+        return cache_path
+
+    def daily_cache_path(self, date_value: str | None = None) -> Path:
+        date_str = self.obsidian.parse_date(date_value).isoformat()
+        progress_base = self.obsidian.week_subpath(date_value, "Progress")
+        return progress_base / f"{date_str}-draft-cache.md"
+
+    def collect_inputs_from_cache(
+        self, date_value: str | None = None
+    ) -> tuple[List[str], List[str], List[str]]:
+        cache_path = self.daily_cache_path(date_value)
+        full_path = self.obsidian.vault_path / cache_path
+        if not full_path.exists():
+            return [], [], []
+
+        cache_text = full_path.read_text(encoding="utf-8")
+        system_prompt = (
+            "You are extracting daily progress inputs from draft notes. "
+            "Return concise bullet items for done, blockers, and next_steps. "
+            "Use only what exists in the text."
+        )
+        user_prompt = f"Draft cache content:\n{cache_text}"
+        try:
+            parsed = self.llm.structured_invoke(system_prompt, user_prompt, DailyProgress)
+            return parsed.done, parsed.blockers, parsed.next_steps
+        except Exception:
+            # Fallback to simple heuristic if model extraction fails.
+            done = [
+                line.strip("- ").strip()
+                for line in cache_text.splitlines()
+                if line.strip().startswith("-")
+            ]
+            return done[:8], [], []
+
+    def latest_cache_snapshot(self, date_value: str | None = None) -> dict:
+        cache_path = self.daily_cache_path(date_value)
+        full_path = self.obsidian.vault_path / cache_path
+        if not full_path.exists():
+            return {"cache_path": "", "last_entry": "", "updated_at": ""}
+
+        raw = full_path.read_text(encoding="utf-8")
+        lines = raw.splitlines()
+        last_header_index = -1
+        for idx, line in enumerate(lines):
+            if line.strip().startswith("## Entry "):
+                last_header_index = idx
+
+        if last_header_index == -1:
+            last_entry = ""
+        else:
+            entry_lines: List[str] = []
+            for line in lines[last_header_index + 1 :]:
+                if line.strip().startswith("## "):
+                    break
+                if line.strip() == "":
+                    continue
+                entry_lines.append(line.strip())
+            last_entry = " ".join(entry_lines).strip()
+
+        updated_at = datetime.fromtimestamp(full_path.stat().st_mtime).isoformat()
+        return {
+            "cache_path": str(cache_path),
+            "last_entry": last_entry,
+            "updated_at": updated_at,
+        }
 
     def _list_files(self, relative_folder: Path) -> List[str]:
         folder = self.obsidian.vault_path / relative_folder

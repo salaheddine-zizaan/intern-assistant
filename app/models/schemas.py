@@ -56,6 +56,12 @@ class ProgressDailyResponse(BaseModel):
     message: Optional[str] = None
 
 
+class ProgressCacheResponse(BaseModel):
+    cache_path: str
+    last_entry: str
+    updated_at: str
+
+
 class ReportWeeklyResponse(BaseModel):
     status: str
     report_path: str

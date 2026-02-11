@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type InputHTMLAttributes } from "react";
 import { createProfile } from "../services/api";
 
 type Props = {
@@ -6,7 +6,14 @@ type Props = {
     profile_id: string;
     internship_name: string;
     start_date: string;
+    active: number;
+    name?: string;
   }) => void;
+};
+
+type DirectoryInputProps = InputHTMLAttributes<HTMLInputElement> & {
+  webkitdirectory?: string;
+  directory?: string;
 };
 
 export default function OnboardingPage({ onCreated }: Props) {
@@ -103,8 +110,7 @@ export default function OnboardingPage({ onCreated }: Props) {
           <label className="vault-button">
             Browse folder
             <input
-              type="file"
-              webkitdirectory="true"
+              {...({ type: "file", webkitdirectory: "true" } as DirectoryInputProps)}
               onChange={(event) => {
                 const files = event.target.files;
                 if (!files || files.length === 0) return;

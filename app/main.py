@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from pathlib import Path
 
@@ -23,6 +23,7 @@ from app.models.schemas import (
     NotesOrganizeResponse,
     ProgressDailyRequest,
     ProgressDailyResponse,
+    ProgressCacheResponse,
     ReportWeeklyResponse,
     TaskExtractRequest,
     TaskExtractResponse,
@@ -116,6 +117,18 @@ def daily_progress(payload: ProgressDailyRequest) -> ProgressDailyResponse:
     )
 
 
+@app.get("/progress/cache/latest", response_model=ProgressCacheResponse)
+def latest_progress_cache(date: str | None = None) -> ProgressCacheResponse:
+    active_profile = profile_service.get_active_profile()
+    if active_profile and (
+        not orchestrator.profile
+        or active_profile["profile_id"] != orchestrator.profile["profile_id"]
+    ):
+        orchestrator.switch_profile(active_profile)
+    snapshot = orchestrator.progress_agent.latest_cache_snapshot(date)
+    return ProgressCacheResponse(**snapshot)
+
+
 @app.post("/reports/weekly", response_model=ReportWeeklyResponse)
 def weekly_report() -> ReportWeeklyResponse:
     report_path, week_ending = orchestrator.report_agent.generate_weekly()
@@ -199,6 +212,28 @@ def _build_pending_payload(text: str, date_value: str | None) -> dict:
     }
 
 
+def _looks_like_daily_update(text: str) -> bool:
+    lower = text.lower().strip()
+    if not lower or "?" in lower:
+        return False
+    write_markers = ["save", "log", "write", "organize", "create", "generate", "extract"]
+    if any(marker in lower for marker in write_markers):
+        return False
+    update_markers = [
+        "fixed",
+        "implemented",
+        "completed",
+        "done",
+        "resolved",
+        "worked",
+        "updated",
+        "refactored",
+        "finished",
+        "deployed",
+    ]
+    return any(marker in lower for marker in update_markers)
+
+
 def _execute_pending_action(state: dict, payload: CommandRequest, profile_id: str, session_id: str) -> CommandResponse:
     pending_payload = state.get("pending_payload") or {}
     action_type = pending_payload.get("action_type")
@@ -232,6 +267,25 @@ def _execute_pending_action(state: dict, payload: CommandRequest, profile_id: st
         actions.extend(["progress_logged", "weekly_progress_generated"])
         files.extend([str(log_path), str(weekly_path)])
         message = "Daily progress logged and weekly summary updated."
+    elif action_type == "daily_progress_from_cache":
+        done, blockers, next_steps = orchestrator.progress_agent.collect_inputs_from_cache(date_value)
+        log_path, weekly_path = orchestrator.progress_agent.log_daily(
+            done=done,
+            blockers=blockers,
+            next_steps=next_steps,
+            date_value=date_value,
+        )
+        task_file, marked = orchestrator.task_agent.mark_tasks_done(done, date_value=date_value)
+        actions.extend(["progress_logged", "weekly_progress_generated"])
+        files.extend([str(log_path), str(weekly_path)])
+        if task_file:
+            files.append(str(task_file))
+        if marked > 0:
+            actions.append("tasks_marked_done")
+        message = (
+            "Draft cache was cleaned into daily progress and weekly summary. "
+            f"Marked {marked} task(s) as done for today."
+        )
     elif action_type == "tasks_extract":
         tasks = orchestrator.task_agent.extract_tasks(text)
         task_file = orchestrator.task_agent.write_tasks(tasks, date_value=date_value)
@@ -321,7 +375,29 @@ def _handle_message(payload: CommandRequest) -> CommandResponse:
             result = _execute_pending_action(state, payload, profile_id, session_id)
             orchestrator.memory.clear_state(profile_id, session_id)
             return result
-        reminder = "I’m waiting for your confirmation. Should I proceed and write to your vault?"
+        if lower.startswith("edit:"):
+            edited_text = text.split(":", 1)[1].strip()
+            orchestrator.memory.clear_state(profile_id, session_id)
+            if not edited_text:
+                message = "Edit mode is active. Update your request and submit it."
+                orchestrator.memory.add_message(profile_id, session_id, "assistant", message)
+                return CommandResponse(
+                    status="success",
+                    actions=[],
+                    files=[],
+                    message=message,
+                    intent="conversation",
+                    action="ask",
+                    reason="Awaiting edited request",
+                )
+            edited_payload = CommandRequest(
+                text=edited_text,
+                date=payload.date,
+                session_id=session_id,
+                model=payload.model,
+            )
+            return _handle_message(edited_payload)
+        reminder = "I'm waiting for your confirmation. Should I proceed and write to your vault?"
         orchestrator.memory.add_message(profile_id, session_id, "user", text)
         orchestrator.memory.add_message(profile_id, session_id, "assistant", reminder)
         return CommandResponse(
@@ -412,6 +488,35 @@ def _handle_message(payload: CommandRequest) -> CommandResponse:
         "generate",
     ]
     has_write_verbs = any(verb in lower for verb in write_verbs)
+
+    if decision.intent != "read_only" and _looks_like_daily_update(text):
+        cache_path = orchestrator.progress_agent.cache_daily_update(text, payload.date)
+        payload_data = {
+            "action_type": "daily_progress_from_cache",
+            "date": payload.date,
+        }
+        question = (
+            "Update captured in today's draft cache. "
+            "Confirm save to clean it into daily progress and mark matching tasks as done."
+        )
+        orchestrator.memory.update_state(
+            profile_id=profile_id,
+            session_id=session_id,
+            pending_action="write",
+            pending_payload=payload_data,
+            conversation_mode="ask",
+        )
+        orchestrator.memory.add_message(profile_id, session_id, "user", text)
+        orchestrator.memory.add_message(profile_id, session_id, "assistant", question)
+        return CommandResponse(
+            status="success",
+            actions=["daily_cache_updated"],
+            files=[str(cache_path)],
+            message=question,
+            intent="write_command",
+            action="ask",
+            reason="Draft cache created",
+        )
 
     if decision.intent == "read_only":
         context = orchestrator.reader.build_read_context(payload.date)
@@ -692,8 +797,8 @@ def profiles_create(payload: ProfileCreateRequest) -> ProfileResponse:
     orchestrator.switch_profile(profile)
     welcome_name = payload.name or "there"
     welcome_message = (
-        f"Hi {welcome_name}, I’m ready to help you with your {payload.internship_name} internship. "
-        "You can start by logging today’s work, summarizing a meeting, or just talking."
+        f"Hi {welcome_name}, Iâ€™m ready to help you with your {payload.internship_name} internship. "
+        "You can start by logging todayâ€™s work, summarizing a meeting, or just talking."
     )
     orchestrator.memory.add_message(
         profile["profile_id"], orchestrator.session_id, "assistant", welcome_message

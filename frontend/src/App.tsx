@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import ChatWindow from "./components/ChatWindow";
 import InputBox from "./components/InputBox";
 import StatusBar from "./components/StatusBar";
@@ -6,6 +6,7 @@ import {
   fetchChatSessions,
   fetchHistory,
   fetchHistoryForSession,
+  fetchLatestProgressCache,
   fetchProfiles,
   sendMessage,
   switchProfile,
@@ -14,6 +15,7 @@ import {
 import OnboardingPage from "./components/OnboardingPage";
 import ProfileSelector from "./components/ProfileSelector";
 import TutorialPage from "./components/TutorialPage";
+import SettingsPage from "./components/SettingsPage";
 
 export type Message = {
   id: string;
@@ -22,6 +24,9 @@ export type Message = {
   actions?: string[];
   files?: string[];
   notice?: string;
+  intent?: string;
+  action?: string;
+  reason?: string;
 };
 
 type Status = "idle" | "loading" | "success" | "error";
@@ -35,6 +40,11 @@ export default function App() {
   const [chatSessions, setChatSessions] = useState<
     { session_id: string; day: string; updated_at: string }[]
   >([]);
+  const [latestCache, setLatestCache] = useState<{
+    cache_path: string;
+    last_entry: string;
+    updated_at: string;
+  } | null>(null);
   const [profiles, setProfiles] = useState<
     { profile_id: string; internship_name: string; active: number; name?: string; start_date?: string }[]
   >([]);
@@ -44,6 +54,10 @@ export default function App() {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [pendingWriteConfirmation, setPendingWriteConfirmation] = useState(false);
+  const [pendingEditMode, setPendingEditMode] = useState(false);
+  const [lastSubmittedMessage, setLastSubmittedMessage] = useState("");
   const [model, setModel] = useState<string>(() => {
     return localStorage.getItem("llm-model") || "gemini-2-flash";
   });
@@ -83,13 +97,15 @@ export default function App() {
         if (history.messages.length > 0) {
           const restored = history.messages.map((msg) => ({
             id: crypto.randomUUID(),
-            role: msg.role === "user" ? "user" : "assistant",
+            role: (msg.role === "user" ? "user" : "assistant") as "user" | "assistant",
             text: msg.content
           }));
           setMessages(restored);
         } else {
           setMessages([]);
         }
+        setPendingWriteConfirmation(false);
+        setPendingEditMode(false);
       })
       .catch(() => {
         setStatusMessage("Unable to load history");
@@ -106,6 +122,16 @@ export default function App() {
       })
       .catch(() => {
         setStatusMessage("Unable to load chat sessions");
+      });
+  };
+
+  const loadLatestCache = () => {
+    fetchLatestProgressCache()
+      .then((data) => {
+        setLatestCache(data);
+      })
+      .catch(() => {
+        setLatestCache(null);
       });
   };
 
@@ -128,43 +154,62 @@ export default function App() {
       });
     loadHistory();
     loadSessions();
+    loadLatestCache();
   }, []);
 
-  const handleSend = async (text: string) => {
+  const handleSend = async (text: string, displayText?: string) => {
     const trimmed = text.trim();
     if (!trimmed) return;
+    const shownText = (displayText || text).trim();
+    if (!shownText) return;
 
     const userMessage: Message = {
       id: crypto.randomUUID(),
       role: "user",
-      text: trimmed
+      text: shownText
     };
 
     setMessages((prev) => [...prev, userMessage]);
     setStatus("loading");
     setStatusMessage("Processing...");
     setInputValue("");
+    setPendingEditMode(false);
+    if (!trimmed.toLowerCase().startsWith("edit:")) {
+      setLastSubmittedMessage(shownText);
+    }
 
     try {
       const response = await sendMessage(trimmed, sessionId, model);
+      const isWritePermissionAsk =
+        response.action === "ask" &&
+        (response.reason === "Explicit write permission required" ||
+          response.reason === "Awaiting confirmation" ||
+          response.reason === "Draft cache created");
       const assistantMessage: Message = {
         id: crypto.randomUUID(),
         role: "assistant",
         text: response.message,
         actions: response.actions,
         files: response.files,
-        notice: response.notice
+        notice: response.notice,
+        intent: response.intent,
+        action: response.action,
+        reason: response.reason
       };
       setMessages((prev) => [...prev, assistantMessage]);
       setStatus("success");
       setStatusMessage("Done");
+      setPendingWriteConfirmation(isWritePermissionAsk);
       loadSessions();
+      loadLatestCache();
       if (response.message.toLowerCase().includes("no active profile")) {
         setShowOnboarding(true);
       }
     } catch (error) {
       setStatus("error");
       setStatusMessage("Request failed");
+      setPendingWriteConfirmation(false);
+      setPendingEditMode(false);
       const assistantMessage: Message = {
         id: crypto.randomUUID(),
         role: "assistant",
@@ -194,6 +239,7 @@ export default function App() {
             setShowTutorial(true);
             loadHistory();
             loadSessions();
+            loadLatestCache();
           }}
         />
       </div>
@@ -210,6 +256,26 @@ export default function App() {
               localStorage.setItem(`tutorial:${activeProfileId}`, "seen");
             }
             setShowTutorial(false);
+          }}
+        />
+      </div>
+    );
+  }
+
+  const activeProfile = profiles.find((p) => p.profile_id === activeProfileId);
+
+  if (showSettings) {
+    return (
+      <div className="shell">
+        <div className="background-glow" />
+        <SettingsPage
+          profile={activeProfile}
+          onBack={() => setShowSettings(false)}
+          onSave={async (payload) => {
+            const updated = await updateProfile(payload);
+            setProfiles((prev) =>
+              prev.map((p) => (p.profile_id === updated.profile_id ? updated : p))
+            );
           }}
         />
       </div>
@@ -239,6 +305,7 @@ export default function App() {
             }
             loadHistory();
             loadSessions();
+            loadLatestCache();
           }}
           onCreate={async () => {
             setShowOnboarding(true);
@@ -343,6 +410,15 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => {
+                    setShowSettings(true);
+                    setShowProfileMenu(false);
+                  }}
+                >
+                  Settings
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
                     sendMessage("reset this conversation", sessionId).finally(() => {
                       setMessages([]);
                       loadHistory();
@@ -388,21 +464,72 @@ export default function App() {
             </div>
           </div>
           <div className="sidebar-card">
-            <div className="sidebar-title">Focus checklist</div>
-            <ul className="sidebar-list">
-              <li>Summaries stay read-only unless you say “save”.</li>
-              <li>Progress logs create weekly rollups automatically.</li>
-              <li>Notes, tasks, meetings stay organized by week.</li>
-            </ul>
+            <div className="sidebar-title">Latest daily cache</div>
+            <div className="sidebar-cache">
+              {latestCache?.last_entry ? (
+                <>
+                  <div className="cache-entry">{latestCache.last_entry}</div>
+                  <div className="cache-meta">
+                    Updated {formatTimestamp(latestCache.updated_at)}
+                  </div>
+                  <div className="cache-meta">{latestCache.cache_path}</div>
+                </>
+              ) : (
+                <div className="cache-entry empty">
+                  No cache entries yet for today. Send a daily update to start.
+                </div>
+              )}
+            </div>
           </div>
         </aside>
         <main className="chat-panel">
           <StatusBar status={status} message={statusMessage} />
           <ChatWindow messages={messages} loading={status === "loading"} />
+          {pendingWriteConfirmation && (
+            <div className="confirm-bar">
+              <div className="confirm-bar-text">
+                This request needs permission before saving to your vault.
+              </div>
+              <div className="confirm-bar-actions">
+                <button
+                  type="button"
+                  className="primary"
+                  disabled={status === "loading"}
+                  onClick={() => {
+                    setPendingWriteConfirmation(false);
+                    handleSend("confirm", "Confirm save");
+                  }}
+                >
+                  Confirm save
+                </button>
+                <button
+                  type="button"
+                  className="ghost"
+                  disabled={status === "loading"}
+                  onClick={() => {
+                    setPendingEditMode(true);
+                    setPendingWriteConfirmation(false);
+                    setInputValue(lastSubmittedMessage);
+                    setStatusMessage(
+                      "Edit mode enabled. Update your message and submit."
+                    );
+                  }}
+                >
+                  Edit previous message
+                </button>
+              </div>
+            </div>
+          )}
           <InputBox
             value={inputValue}
             onChange={setInputValue}
-            onSend={handleSend}
+            onSend={(text) => {
+              if (pendingEditMode) {
+                handleSend(`edit: ${text}`, text);
+                return;
+              }
+              handleSend(text);
+            }}
             disabled={status === "loading"}
           />
         </main>
