@@ -134,3 +134,18 @@ class ProfileUpdateRequest(BaseModel):
     internship_name: Optional[str] = None
     start_date: Optional[str] = None
     vault_root: Optional[str] = None
+
+
+class ModelSettingsResponse(BaseModel):
+    selected_model: str
+    available_models: List[str]
+    google_api_key_configured: bool
+    openrouter_api_key_configured: bool
+    openrouter_base_url: str
+
+
+class ModelSettingsUpdateRequest(BaseModel):
+    selected_model: Optional[str] = None
+    google_api_key: Optional[str] = None
+    openrouter_api_key: Optional[str] = None
+    openrouter_base_url: Optional[str] = None

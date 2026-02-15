@@ -48,6 +48,14 @@ export type ProfilesListResponse = {
   profiles: Profile[];
 };
 
+export type ModelSettingsResponse = {
+  selected_model: string;
+  available_models: string[];
+  google_api_key_configured: boolean;
+  openrouter_api_key_configured: boolean;
+  openrouter_base_url: string;
+};
+
 export async function sendMessage(
   text: string,
   sessionId?: string,
@@ -159,4 +167,31 @@ export async function updateProfile(payload: {
     throw new Error("Profile update failed");
   }
   return response.json() as Promise<Profile>;
+}
+
+export async function fetchModelSettings(): Promise<ModelSettingsResponse> {
+  const response = await fetch(`${API_BASE_URL}/settings/models`);
+  if (!response.ok) {
+    throw new Error("Model settings fetch failed");
+  }
+  return response.json() as Promise<ModelSettingsResponse>;
+}
+
+export async function updateModelSettings(payload: {
+  selected_model?: string;
+  google_api_key?: string;
+  openrouter_api_key?: string;
+  openrouter_base_url?: string;
+}): Promise<ModelSettingsResponse> {
+  const response = await fetch(`${API_BASE_URL}/settings/models`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => null);
+    const detail = errorBody?.detail || "Model settings update failed";
+    throw new Error(detail);
+  }
+  return response.json() as Promise<ModelSettingsResponse>;
 }

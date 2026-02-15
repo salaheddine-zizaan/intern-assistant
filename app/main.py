@@ -1,6 +1,7 @@
 ﻿from __future__ import annotations
 
 from pathlib import Path
+import os
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,6 +18,8 @@ from app.models.schemas import (
     ProfilesListResponse,
     ProfileSwitchRequest,
     ProfileUpdateRequest,
+    ModelSettingsResponse,
+    ModelSettingsUpdateRequest,
     MeetingSummarizeRequest,
     MeetingSummarizeResponse,
     NotesOrganizeRequest,
@@ -29,14 +32,15 @@ from app.models.schemas import (
     TaskExtractResponse,
 )
 from app.orchestrator import Orchestrator
-from app.config import DATABASE_PATH, VAULT_PATH
+from app.config import DATABASE_PATH, VAULT_PATH, LOCAL_ENV_PATH, get_gemini_model
+from app.services.config_service import ConfigService
 from app.services.profile_service import ProfileService
 
 
 app = FastAPI(title="Intern Assistant API", version="0.1.0")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173", "null"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -44,6 +48,16 @@ app.add_middleware(
 orchestrator = Orchestrator.build()
 scheduler = BackgroundScheduler()
 profile_service = ProfileService(DATABASE_PATH)
+config_service = ConfigService(LOCAL_ENV_PATH)
+AVAILABLE_MODELS = [
+    "gemini-2-flash",
+    "gemini-2.5-flash",
+    "gemini-1.5-flash-001",
+    "openrouter:nvidia/nemotron-3-nano-30b-a3b:free",
+    "openrouter:openrouter/free",
+    "openrouter:upstage/solar-pro-3:free",
+    "openrouter:arcee-ai/trinity-large-preview:free",
+]
 
 
 @app.on_event("startup")
@@ -829,3 +843,80 @@ def profiles_update(payload: ProfileUpdateRequest) -> ProfileResponse:
     if orchestrator.profile and orchestrator.profile["profile_id"] == profile["profile_id"]:
         orchestrator.switch_profile(profile)
     return ProfileResponse(**profile)
+
+
+def _current_model_settings() -> ModelSettingsResponse:
+    loaded = config_service.load()
+    selected_model = (
+        loaded.get("GEMINI_MODEL")
+        or os.getenv("GEMINI_MODEL")
+        or getattr(orchestrator.brain.llm, "model_name", None)
+        or get_gemini_model()
+    )
+    openrouter_base_url = (
+        loaded.get("OPENROUTER_BASE_URL")
+        or os.getenv("OPENROUTER_BASE_URL")
+        or "https://openrouter.ai/api/v1"
+    )
+    return ModelSettingsResponse(
+        selected_model=selected_model,
+        available_models=AVAILABLE_MODELS,
+        google_api_key_configured=bool(
+            loaded.get("GOOGLE_API_KEY") or os.getenv("GOOGLE_API_KEY")
+        ),
+        openrouter_api_key_configured=bool(
+            loaded.get("OPENROUTER_API_KEY") or os.getenv("OPENROUTER_API_KEY")
+        ),
+        openrouter_base_url=openrouter_base_url,
+    )
+
+
+@app.get("/settings/models", response_model=ModelSettingsResponse)
+def get_model_settings() -> ModelSettingsResponse:
+    return _current_model_settings()
+
+
+@app.post("/settings/models", response_model=ModelSettingsResponse)
+def update_model_settings(payload: ModelSettingsUpdateRequest) -> ModelSettingsResponse:
+    updates: dict[str, str] = {}
+
+    if payload.selected_model:
+        if payload.selected_model not in AVAILABLE_MODELS:
+            raise HTTPException(status_code=400, detail="selected model is not supported")
+        updates["GEMINI_MODEL"] = payload.selected_model
+
+    if payload.google_api_key is not None:
+        clean_key = payload.google_api_key.strip()
+        if clean_key:
+            updates["GOOGLE_API_KEY"] = clean_key
+            os.environ["GOOGLE_API_KEY"] = clean_key
+            orchestrator.brain.llm.set_google_api_key(clean_key)
+
+    if payload.openrouter_api_key is not None:
+        clean_openrouter_key = payload.openrouter_api_key.strip()
+        if clean_openrouter_key:
+            updates["OPENROUTER_API_KEY"] = clean_openrouter_key
+            os.environ["OPENROUTER_API_KEY"] = clean_openrouter_key
+
+    if payload.openrouter_base_url is not None:
+        clean_openrouter_base_url = payload.openrouter_base_url.strip()
+        if clean_openrouter_base_url:
+            updates["OPENROUTER_BASE_URL"] = clean_openrouter_base_url
+            os.environ["OPENROUTER_BASE_URL"] = clean_openrouter_base_url
+
+    if updates:
+        config_service.save(updates)
+
+    if payload.openrouter_api_key is not None or payload.openrouter_base_url is not None:
+        orchestrator.brain.llm.set_openrouter_credentials(
+            payload.openrouter_api_key, payload.openrouter_base_url
+        )
+
+    selected_model = payload.selected_model or _current_model_settings().selected_model
+    if selected_model:
+        try:
+            orchestrator.brain.llm.set_model(selected_model)
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=_llm_error_message(exc)) from exc
+
+    return _current_model_settings()

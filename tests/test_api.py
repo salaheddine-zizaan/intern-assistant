@@ -13,6 +13,8 @@ from app.services.obsidian_service import ObsidianService
 
 @dataclass
 class BrainFake:
+    llm: object
+
     def decide(self, text: str, history: str = ""):
         class Decision:
             intent = "write_command"
@@ -62,6 +64,21 @@ class MemoryFake:
 class ReaderFake:
     def build_read_context(self, date_value=None) -> str:
         return ""
+
+
+@dataclass
+class LLMFake:
+    model_name: str = "gemini-2.5-flash"
+    api_key: str | None = None
+
+    def set_model(self, model_name: str) -> None:
+        self.model_name = model_name
+
+    def set_google_api_key(self, api_key: str) -> None:
+        self.api_key = api_key
+
+    def set_openrouter_credentials(self, api_key: str | None, base_url: str | None = None) -> None:
+        return None
 
 
 @dataclass
@@ -152,6 +169,7 @@ def build_fake_orchestrator(base_path: Path):
     db = DBService(db_path)
 
     task_agent = TaskAgentFake(obsidian=obsidian)
+    llm = LLMFake()
     return type(
         "FakeOrchestrator",
         (),
@@ -162,7 +180,7 @@ def build_fake_orchestrator(base_path: Path):
             "meeting_agent": MeetingAgentFake(obsidian=obsidian, task_agent=task_agent),
             "progress_agent": ProgressAgentFake(obsidian=obsidian, db=db),
             "report_agent": ReportAgentFake(obsidian=obsidian),
-            "brain": BrainFake(),
+            "brain": BrainFake(llm=llm),
             "memory": MemoryFake(messages=[]),
             "reader": ReaderFake(),
             "session_id": "test-session",
@@ -240,3 +258,26 @@ def test_reports_weekly(tmp_path, monkeypatch):
     payload = response.json()
     assert payload["status"] == "ok"
     assert payload["report_path"].endswith(".md")
+
+
+def test_model_settings_roundtrip(tmp_path, monkeypatch):
+    client = create_client(tmp_path, monkeypatch)
+    post = client.post(
+        "/settings/models",
+        json={
+            "selected_model": "gemini-2-flash",
+            "google_api_key": "test-google-key",
+            "openrouter_api_key": "test-openrouter-key",
+            "openrouter_base_url": "https://openrouter.ai/api/v1",
+        },
+    )
+    assert post.status_code == 200
+    updated = post.json()
+    assert updated["selected_model"] == "gemini-2-flash"
+    assert updated["google_api_key_configured"] is True
+    assert updated["openrouter_api_key_configured"] is True
+
+    get_response = client.get("/settings/models")
+    assert get_response.status_code == 200
+    settings = get_response.json()
+    assert settings["selected_model"] == "gemini-2-flash"

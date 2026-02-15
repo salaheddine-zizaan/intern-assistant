@@ -7,9 +7,11 @@ import {
   fetchHistory,
   fetchHistoryForSession,
   fetchLatestProgressCache,
+  fetchModelSettings,
   fetchProfiles,
   sendMessage,
   switchProfile,
+  updateModelSettings,
   updateProfile
 } from "./services/api";
 import OnboardingPage from "./components/OnboardingPage";
@@ -59,8 +61,20 @@ export default function App() {
   const [pendingEditMode, setPendingEditMode] = useState(false);
   const [lastSubmittedMessage, setLastSubmittedMessage] = useState("");
   const [model, setModel] = useState<string>(() => {
-    return localStorage.getItem("llm-model") || "gemini-2-flash";
+    return localStorage.getItem("llm-model") || "gemini-2.5-flash";
   });
+  const [availableModels, setAvailableModels] = useState<string[]>([
+    "gemini-2-flash",
+    "gemini-2.5-flash",
+    "gemini-1.5-flash-001",
+    "openrouter:nvidia/nemotron-3-nano-30b-a3b:free",
+    "openrouter:openrouter/free",
+    "openrouter:upstage/solar-pro-3:free",
+    "openrouter:arcee-ai/trinity-large-preview:free"
+  ]);
+  const [googleApiConfigured, setGoogleApiConfigured] = useState(false);
+  const [openrouterApiConfigured, setOpenrouterApiConfigured] = useState(false);
+  const [openrouterBaseUrl, setOpenrouterBaseUrl] = useState("https://openrouter.ai/api/v1");
   const formatDay = (value: string) => {
     if (!value) return "";
     try {
@@ -155,6 +169,18 @@ export default function App() {
     loadHistory();
     loadSessions();
     loadLatestCache();
+    fetchModelSettings()
+      .then((settings) => {
+        setModel(settings.selected_model);
+        setAvailableModels(settings.available_models);
+        setGoogleApiConfigured(settings.google_api_key_configured);
+        setOpenrouterApiConfigured(settings.openrouter_api_key_configured);
+        setOpenrouterBaseUrl(settings.openrouter_base_url);
+        localStorage.setItem("llm-model", settings.selected_model);
+      })
+      .catch(() => {
+        setStatusMessage("Unable to load model settings");
+      });
   }, []);
 
   const handleSend = async (text: string, displayText?: string) => {
@@ -270,12 +296,37 @@ export default function App() {
         <div className="background-glow" />
         <SettingsPage
           profile={activeProfile}
+          modelSettings={{
+            selected_model: model,
+            available_models: availableModels,
+            google_api_key_configured: googleApiConfigured,
+            openrouter_api_key_configured: openrouterApiConfigured,
+            openrouter_base_url: openrouterBaseUrl
+          }}
           onBack={() => setShowSettings(false)}
           onSave={async (payload) => {
-            const updated = await updateProfile(payload);
+            const updated = await updateProfile({
+              profile_id: payload.profile_id,
+              name: payload.name,
+              internship_name: payload.internship_name,
+              start_date: payload.start_date,
+              vault_root: payload.vault_root
+            });
             setProfiles((prev) =>
               prev.map((p) => (p.profile_id === updated.profile_id ? updated : p))
             );
+            const modelSettings = await updateModelSettings({
+              selected_model: payload.selected_model,
+              google_api_key: payload.google_api_key,
+              openrouter_api_key: payload.openrouter_api_key,
+              openrouter_base_url: payload.openrouter_base_url
+            });
+            setModel(modelSettings.selected_model);
+            setAvailableModels(modelSettings.available_models);
+            setGoogleApiConfigured(modelSettings.google_api_key_configured);
+            setOpenrouterApiConfigured(modelSettings.openrouter_api_key_configured);
+            setOpenrouterBaseUrl(modelSettings.openrouter_base_url);
+            localStorage.setItem("llm-model", modelSettings.selected_model);
           }}
         />
       </div>
@@ -343,23 +394,16 @@ export default function App() {
                 const next = event.target.value;
                 setModel(next);
                 localStorage.setItem("llm-model", next);
+                updateModelSettings({ selected_model: next }).catch(() => {
+                  setStatusMessage("Failed to update selected model");
+                });
               }}
             >
-              <option value="gemini-2-flash">gemini-2-flash</option>
-              <option value="gemini-2.5-flash">gemini-2.5-flash</option>
-              <option value="gemini-1.5-flash-001">gemini-1.5-flash-001</option>
-              <option value="openrouter:nvidia/nemotron-3-nano-30b-a3b:free">
-                openrouter/nvidia/nemotron-3-nano-30b-a3b:free
-              </option>
-              <option value="openrouter:openrouter/free">
-                openrouter/free (router)
-              </option>
-              <option value="openrouter:upstage/solar-pro-3:free">
-                openrouter/upstage/solar-pro-3:free
-              </option>
-              <option value="openrouter:arcee-ai/trinity-large-preview:free">
-                openrouter/arcee-ai/trinity-large-preview:free
-              </option>
+              {availableModels.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
             </select>
           </div>
           <div className="profile-menu">

@@ -25,10 +25,16 @@ class LLMService:
         self.config = ConfigService(Path(config_path) if config_path else Path(".env.local"))
         if self._is_openrouter_model(model):
             self.provider = "openrouter"
-            self.model = self._build_openrouter_model(model)
+            try:
+                self.model = self._build_openrouter_model(model)
+            except Exception:
+                # Allow app startup without credentials; fail lazily on first LLM call.
+                self.model = None
         else:
             if not api_key:
-                raise RuntimeError("GOOGLE_API_KEY is required to run the LLM service.")
+                self.provider = "gemini"
+                self.model = None
+                return
             self.provider = "gemini"
             self.model = ChatGoogleGenerativeAI(
                 model=model, google_api_key=api_key, temperature=0.2
@@ -49,7 +55,31 @@ class LLMService:
                 model=model_name, google_api_key=self.api_key, temperature=0.2
             )
 
+    def set_google_api_key(self, api_key: str) -> None:
+        clean = (api_key or "").strip()
+        if not clean:
+            return
+        self.api_key = clean
+        os.environ["GOOGLE_API_KEY"] = clean
+        if not self._is_openrouter_model(self.model_name):
+            self.model = ChatGoogleGenerativeAI(
+                model=self.model_name, google_api_key=clean, temperature=0.2
+            )
+
+    def set_openrouter_credentials(self, api_key: str | None, base_url: str | None = None) -> None:
+        if api_key is not None:
+            clean_key = api_key.strip()
+            if clean_key:
+                os.environ["OPENROUTER_API_KEY"] = clean_key
+        if base_url is not None:
+            clean_url = base_url.strip()
+            if clean_url:
+                os.environ["OPENROUTER_BASE_URL"] = clean_url
+        if self._is_openrouter_model(self.model_name):
+            self.model = self._build_openrouter_model(self.model_name)
+
     def invoke(self, system_prompt: str, user_prompt: str) -> str:
+        self._ensure_model_ready()
         prompt = ChatPromptTemplate.from_messages(
             [("system", "{system}"), ("user", "{user}")]
         )
@@ -58,6 +88,7 @@ class LLMService:
         return self._normalize_content(content)
 
     def structured_invoke(self, system_prompt: str, user_prompt: str, output_model: Type[T]) -> T:
+        self._ensure_model_ready()
         parser = PydanticOutputParser(pydantic_object=output_model)
         prompt = ChatPromptTemplate.from_messages(
             [("system", "{system}"), ("user", "{user}")]
@@ -67,6 +98,13 @@ class LLMService:
         content = self._invoke_chain(chain, system_prompt, augmented_user)
         normalized = self._normalize_content(content)
         return parser.parse(normalized)
+
+    def _ensure_model_ready(self) -> None:
+        if self.model is not None:
+            return
+        if self.provider == "openrouter":
+            raise RuntimeError("OPENROUTER_API_KEY is required to use OpenRouter models.")
+        raise RuntimeError("GOOGLE_API_KEY is required to run the LLM service.")
 
     def _invoke_chain(self, chain, system_prompt: str, user_prompt: str):
         try:
@@ -145,11 +183,12 @@ class LLMService:
         return name.strip() or "nvidia/nemotron-3-nano-30b-a3b:free"
 
     def _build_openrouter_model(self, model_name: str):
-        api_key = os.getenv("OPENROUTER_API_KEY") or self.config.load().get("OPENROUTER_API_KEY")
+        loaded = self.config.load()
+        api_key = os.getenv("OPENROUTER_API_KEY") or loaded.get("OPENROUTER_API_KEY")
         if not api_key:
             raise RuntimeError("OPENROUTER_API_KEY is required to use OpenRouter models.")
         base_url = (
-            self.config.load().get("OPENROUTER_BASE_URL")
+            loaded.get("OPENROUTER_BASE_URL")
             or str(os.getenv("OPENROUTER_BASE_URL") or "https://openrouter.ai/api/v1")
         )
         return ChatOpenAI(
