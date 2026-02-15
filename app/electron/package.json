@@ -1,0 +1,45 @@
+{
+  "name": "intern-assistant-electron",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Electron desktop wrapper for Intern Assistant",
+  "author": "intern-assistant",
+  "main": "main.cjs",
+  "scripts": {
+    "start": "set ELECTRON_RUN_AS_NODE=&& electron .",
+    "build:frontend": "npm --prefix ../intern_assistant/frontend run build",
+    "start:desktop": "npm run build:frontend && npm run start",
+    "dist:win": "npm run build:frontend && electron-builder --win portable --config.win.signAndEditExecutable=false --config.forceCodeSigning=false"
+  },
+  "devDependencies": {
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.internassistant.desktop",
+    "productName": "Intern Assistant",
+    "asar": true,
+    "files": [
+      "main.cjs",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../intern_assistant/frontend/dist",
+        "to": "frontend/dist"
+      },
+      {
+        "from": "../intern_assistant/app",
+        "to": "backend/app"
+      }
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "win": {
+      "target": [
+        "portable"
+      ]
+    }
+  }
+}
