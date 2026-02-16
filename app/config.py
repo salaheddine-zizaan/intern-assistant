@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import os
-import sys
-from getpass import getpass
 from pathlib import Path
 
 from app.services.config_service import ConfigService
@@ -27,15 +25,6 @@ def get_google_api_key() -> str | None:
     if stored:
         os.environ["GOOGLE_API_KEY"] = stored
         return stored
-    if sys.stdin and sys.stdin.isatty():
-        try:
-            api_key = getpass("Enter GOOGLE_API_KEY (Gemini): ").strip()
-        except EOFError:
-            api_key = ""
-        if api_key:
-            os.environ["GOOGLE_API_KEY"] = api_key
-            _config_service.save({"GOOGLE_API_KEY": api_key})
-            return api_key
     return None
 
 

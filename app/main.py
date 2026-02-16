@@ -49,6 +49,11 @@ orchestrator = Orchestrator.build()
 scheduler = BackgroundScheduler()
 profile_service = ProfileService(DATABASE_PATH)
 config_service = ConfigService(LOCAL_ENV_PATH)
+DEFAULT_ENV_TEMPLATE = {
+    "GOOGLE_API_KEY": "",
+    "OPENROUTER_API_KEY": "",
+    "GEMINI_MODEL": "openrouter:nvidia/nemotron-3-nano-30b-a3b:free",
+}
 AVAILABLE_MODELS = [
     "gemini-2-flash",
     "gemini-2.5-flash",
@@ -60,8 +65,44 @@ AVAILABLE_MODELS = [
 ]
 
 
+def _ensure_daily_session_for_profile(profile_id: str, date_value: str | None = None) -> str:
+    session_id = orchestrator.memory.get_or_create_daily_session(profile_id, date_value)
+    return session_id
+
+
+def _rollover_daily_sessions() -> None:
+    try:
+        profiles = profile_service.list_profiles()
+    except Exception:
+        return
+
+    for profile in profiles:
+        profile_id = profile.get("profile_id")
+        if profile_id:
+            _ensure_daily_session_for_profile(profile_id)
+
+    active_profile = profile_service.get_active_profile()
+    if active_profile and (
+        not orchestrator.profile
+        or active_profile["profile_id"] == orchestrator.profile["profile_id"]
+    ):
+        orchestrator.session_id = _ensure_daily_session_for_profile(active_profile["profile_id"])
+
+
 @app.on_event("startup")
 def startup_event() -> None:
+    config_service.ensure_defaults(DEFAULT_ENV_TEMPLATE)
+    _rollover_daily_sessions()
+    scheduler.add_job(
+        _rollover_daily_sessions,
+        trigger="cron",
+        hour=0,
+        minute=0,
+        id="daily-session-rollover",
+        replace_existing=True,
+        coalesce=True,
+        max_instances=1,
+    )
     scheduler.start()
 
 
@@ -359,9 +400,9 @@ def _handle_message(payload: CommandRequest) -> CommandResponse:
     if not orchestrator.profile or active_profile["profile_id"] != orchestrator.profile["profile_id"]:
         orchestrator.switch_profile(active_profile)
     profile_id = orchestrator.profile["profile_id"]
-    session_id = payload.session_id or orchestrator.session_id
-    if not session_id:
-        session_id = orchestrator.memory.get_or_create_daily_session(profile_id, payload.date)
+    daily_session_id = _ensure_daily_session_for_profile(profile_id, payload.date)
+    session_id = payload.session_id or daily_session_id
+    if not payload.session_id:
         orchestrator.session_id = session_id
     history = orchestrator.memory.get_context(profile_id, session_id)
     state = orchestrator.memory.get_state(profile_id, session_id)
@@ -762,11 +803,10 @@ def chat_history(session_id: str | None = None) -> ChatHistoryResponse:
     active_profile = profile_service.get_active_profile()
     if not active_profile:
         return ChatHistoryResponse(session_id="", messages=[])
-    if active_profile and active_profile["profile_id"] != orchestrator.profile["profile_id"]:
+    if not orchestrator.profile or active_profile["profile_id"] != orchestrator.profile["profile_id"]:
         orchestrator.switch_profile(active_profile)
-    selected_session = session_id or orchestrator.session_id
-    if not selected_session:
-        selected_session = orchestrator.memory.get_or_create_daily_session(active_profile["profile_id"])
+    selected_session = session_id or _ensure_daily_session_for_profile(active_profile["profile_id"])
+    if not session_id:
         orchestrator.session_id = selected_session
     messages = orchestrator.memory.get_history(orchestrator.profile["profile_id"], selected_session)
     return ChatHistoryResponse(session_id=selected_session, messages=messages)
@@ -777,12 +817,10 @@ def chat_sessions() -> ChatSessionsResponse:
     active_profile = profile_service.get_active_profile()
     if not active_profile:
         return ChatSessionsResponse(active_session_id=None, sessions=[])
-    if active_profile and active_profile["profile_id"] != orchestrator.profile["profile_id"]:
+    if not orchestrator.profile or active_profile["profile_id"] != orchestrator.profile["profile_id"]:
         orchestrator.switch_profile(active_profile)
-    session_id = orchestrator.session_id
-    if not session_id:
-        session_id = orchestrator.memory.get_or_create_daily_session(active_profile["profile_id"])
-        orchestrator.session_id = session_id
+    session_id = _ensure_daily_session_for_profile(active_profile["profile_id"])
+    orchestrator.session_id = session_id
     sessions = orchestrator.memory.list_sessions(active_profile["profile_id"])
     return ChatSessionsResponse(active_session_id=session_id, sessions=sessions)
 

@@ -751,6 +751,80 @@ body {
   justify-content: center;
 }
 
+.api-setup-shell {
+  display: flex;
+  justify-content: center;
+}
+
+.api-setup-card {
+  width: min(860px, 100%);
+  background: rgba(15, 23, 42, 0.82);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 24px;
+  padding: 26px;
+  box-shadow: 0 28px 56px rgba(3, 7, 18, 0.55);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  position: relative;
+  overflow: hidden;
+}
+
+.api-setup-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 10% 0%, rgba(34, 211, 238, 0.15), transparent 45%),
+    radial-gradient(circle at 90% 20%, rgba(59, 130, 246, 0.14), transparent 52%);
+  pointer-events: none;
+}
+
+.api-setup-header,
+.api-setup-grid,
+.api-setup-actions,
+.api-setup-card .form-error {
+  position: relative;
+  z-index: 1;
+}
+
+.api-setup-header h2 {
+  margin: 6px 0;
+}
+
+.api-setup-header p {
+  margin: 0;
+  opacity: 0.78;
+  line-height: 1.6;
+}
+
+.api-setup-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+.api-setup-grid select,
+.api-setup-grid input {
+  width: 100%;
+  padding: 11px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  font-family: inherit;
+  background: rgba(15, 23, 42, 0.65);
+  color: #e2e8f0;
+}
+
+.api-setup-grid select:focus-visible,
+.api-setup-grid input:focus-visible {
+  outline: 2px solid rgba(34, 211, 238, 0.7);
+  outline-offset: 2px;
+}
+
+.api-setup-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
 .settings-card {
   width: min(900px, 100%);
   background: rgba(15, 23, 42, 0.8);
@@ -1236,5 +1310,10 @@ body {
 
   .settings-grid {
     grid-template-columns: 1fr;
+  }
+
+  .api-setup-card {
+    padding: 20px;
+    border-radius: 18px;
   }
 }

@@ -33,6 +33,9 @@ class BrainFake:
 class MemoryFake:
     messages: list
 
+    def get_or_create_daily_session(self, profile_id: str, day: str | None = None) -> str:
+        return f"day-{day or 'today'}-{profile_id}"
+
     def get_context(self, profile_id: str, session_id: str) -> str:
         return ""
 
@@ -85,7 +88,7 @@ class LLMFake:
 class NotesAgentFake:
     obsidian: ObsidianService
 
-    def organize(self, raw_text: str, category: str) -> tuple[Path, str]:
+    def organize(self, raw_text: str, category: str, date_value: str | None = None) -> tuple[Path, str]:
         title = "Test Note"
         frontmatter = self.obsidian.build_frontmatter(title, ["test"], "summary")
         body = f"# {title}\n\n{raw_text.strip()}"
@@ -104,7 +107,7 @@ class TaskAgentFake:
     def extract_tasks(self, source_text: str):
         return [{"description": "Follow up", "status": "todo", "due_date": None}]
 
-    def write_tasks(self, tasks) -> Path:
+    def write_tasks(self, tasks, date_value: str | None = None) -> Path:
         date_str = self.obsidian.timestamp()
         task_file = Path(f"Tasks/{date_str}-tasks.md")
         lines = [
@@ -123,7 +126,7 @@ class MeetingAgentFake:
     obsidian: ObsidianService
     task_agent: TaskAgentFake
 
-    def summarize(self, raw_text: str):
+    def summarize(self, raw_text: str, date_value: str | None = None):
         title = "Advisor Sync"
         frontmatter = self.obsidian.build_frontmatter(title, ["meeting"], "summary")
         note_path = Path("Notes/Meetings/advisor-sync.md")

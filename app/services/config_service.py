@@ -26,3 +26,13 @@ class ConfigService:
         lines = [f"{key}={value}" for key, value in current.items()]
         self.env_path.parent.mkdir(parents=True, exist_ok=True)
         self.env_path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
+
+    def ensure_defaults(self, defaults: Dict[str, str]) -> None:
+        current = self.load()
+        missing = {key: value for key, value in defaults.items() if key not in current}
+        if not missing:
+            return
+        current.update(missing)
+        lines = [f"{key}={value}" for key, value in current.items()]
+        self.env_path.parent.mkdir(parents=True, exist_ok=True)
+        self.env_path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")

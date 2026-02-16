@@ -18,6 +18,7 @@ import OnboardingPage from "./components/OnboardingPage";
 import ProfileSelector from "./components/ProfileSelector";
 import TutorialPage from "./components/TutorialPage";
 import SettingsPage from "./components/SettingsPage";
+import ApiSetupPage from "./components/ApiSetupPage";
 
 export type Message = {
   id: string;
@@ -75,6 +76,7 @@ export default function App() {
   const [googleApiConfigured, setGoogleApiConfigured] = useState(false);
   const [openrouterApiConfigured, setOpenrouterApiConfigured] = useState(false);
   const [openrouterBaseUrl, setOpenrouterBaseUrl] = useState("https://openrouter.ai/api/v1");
+  const [showApiSetup, setShowApiSetup] = useState(false);
   const formatDay = (value: string) => {
     if (!value) return "";
     try {
@@ -176,6 +178,9 @@ export default function App() {
         setGoogleApiConfigured(settings.google_api_key_configured);
         setOpenrouterApiConfigured(settings.openrouter_api_key_configured);
         setOpenrouterBaseUrl(settings.openrouter_base_url);
+        setShowApiSetup(
+          !settings.google_api_key_configured && !settings.openrouter_api_key_configured
+        );
         localStorage.setItem("llm-model", settings.selected_model);
       })
       .catch(() => {
@@ -244,6 +249,33 @@ export default function App() {
       setMessages((prev) => [...prev, assistantMessage]);
     }
   };
+
+  if (showApiSetup) {
+    return (
+      <div className="shell">
+        <div className="background-glow" />
+        <ApiSetupPage
+          availableModels={availableModels}
+          selectedModel={model}
+          openrouterBaseUrl={openrouterBaseUrl}
+          googleConfigured={googleApiConfigured}
+          openrouterConfigured={openrouterApiConfigured}
+          onSave={async (payload) => {
+            const settings = await updateModelSettings(payload);
+            setModel(settings.selected_model);
+            setAvailableModels(settings.available_models);
+            setGoogleApiConfigured(settings.google_api_key_configured);
+            setOpenrouterApiConfigured(settings.openrouter_api_key_configured);
+            setOpenrouterBaseUrl(settings.openrouter_base_url);
+            localStorage.setItem("llm-model", settings.selected_model);
+            if (settings.google_api_key_configured || settings.openrouter_api_key_configured) {
+              setShowApiSetup(false);
+            }
+          }}
+        />
+      </div>
+    );
+  }
 
   if (showOnboarding) {
     return (
